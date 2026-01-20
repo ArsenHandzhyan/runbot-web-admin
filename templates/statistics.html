@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика - RunBot Admin{% endblock %}
+
+{% block scripts %}
+<script>
+    // Update server time display
+    function updateServerTime() {
+        const now = new Date();
+        const timeString = now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU');
+        document.getElementById('server-time').textContent = timeString;
+    }
+    
+    // Update time immediately and every second
+    updateServerTime();
+    setInterval(updateServerTime, 1000);
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1>📊 Статистика</h1>
+            <p class="text-muted">Общая статистика системы</p>
+        </div>
+    </div>
+    
+    <!-- Summary Cards -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5 class="card-title">Участники</h5>
+                            <h2>{{ total_participants }}</h2>
+                        </div>
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5 class="card-title">События</h5>
+                            <h2>{{ total_events }}</h2>
+                        </div>
+                        <i class="fas fa-calendar-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5 class="card-title">Челленджи</h5>
+                            <h2>{{ total_challenges }}</h2>
+                        </div>
+                        <i class="fas fa-trophy fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h5 class="card-title">Отчеты</h5>
+                            <h2>{{ submissions_by_status.values()|sum }}</h2>
+                        </div>
+                        <i class="fas fa-file-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Submissions by Status -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Статусы отчетов</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Статус</th>
+                                    <th>Количество</th>
+                                    <th>Процент</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set total_submissions = submissions_by_status.values()|sum %}
+                                {% for status, count in submissions_by_status.items() %}
+                                <tr>
+                                    <td>
+                                        {% if status == 'pending' %}
+                                            <span class="badge bg-warning">На модерации</span>
+                                        {% elif status == 'approved' %}
+                                            <span class="badge bg-success">Одобрено</span>
+                                        {% elif status == 'rejected' %}
+                                            <span class="badge bg-danger">Отклонено</span>
+                                        {% elif status == 'cancelled' %}
+                                            <span class="badge bg-secondary">Отменено</span>
+                                        {% else %}
+                                            <span class="badge bg-dark">{{ status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ count }}</td>
+                                    <td>
+                                        {% if total_submissions > 0 %}
+                                            {{ "%.1f"|format((count / total_submissions * 100)) }}%
+                                        {% else %}
+                                            0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Быстрые действия</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <a href="{{ url_for('participants') }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-users"></i> Просмотр участников
+                            </a>
+                        </li>
+                        <li class="list-group-item">
+                            <a href="{{ url_for('events') }}" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-calendar-alt"></i> Просмотр событий
+                            </a>
+                        </li>
+                        <li class="list-group-item">
+                            <a href="{{ url_for('challenges') }}" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-trophy"></i> Просмотр челленджей
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Системная информация</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li><strong>Версия:</strong> RunBot v1.0</li>
+                        <li><strong>Статус:</strong> <span class="badge bg-success">Онлайн</span></li>
+                        <li><strong>База данных:</strong> SQLite</li>
+                        <li><strong>Время сервера:</strong> <span id="server-time"></span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

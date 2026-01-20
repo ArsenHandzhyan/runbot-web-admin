@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Участники - RunBot Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1>👥 Участники</h1>
+            <p class="text-muted">Список всех зарегистрированных участников</p>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Все участники ({{ participants|length }})</h5>
+                </div>
+                <div class="card-body">
+                    {% if participants %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>№</th>
+                                        <th>ФИО</th>
+                                        <th>Телеграм ID</th>
+                                        <th>Номер участника</th>
+                                        <th>Дата рождения</th>
+                                        <th>Телефон</th>
+                                        <th>Дата регистрации</th>
+                                        <th>Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for participant in participants %}
+                                    <tr>
+                                        <td>{{ loop.index }}</td>
+                                        <td>{{ participant.full_name }}</td>
+                                        <td>{{ participant.telegram_id }}</td>
+                                        <td><span class="badge bg-primary">{{ participant.start_number }}</span></td>
+                                        <td>{{ participant.birth_date.strftime('%d.%m.%Y') }}</td>
+                                        <td>{{ participant.phone }}</td>
+                                        <td>{{ participant.registration_date.strftime('%d.%m.%Y %H:%M') }}</td>
+                                        <td>
+                                            {% if participant.is_active %}
+                                                <span class="badge bg-success">Активен</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Неактивен</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h4 class="text-muted">Пока нет участников</h4>
+                            <p class="text-muted">Зарегистрированные участники будут отображаться здесь</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
