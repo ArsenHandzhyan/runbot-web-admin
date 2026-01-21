@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Создать событие - RunBot Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-calendar-plus"></i> Создать новое событие</h1>
+        <p class="text-muted">Заполните форму для создания нового события</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Информация о событии</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Название события *</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Описание</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="event_type" class="form-label">Тип события *</label>
+                        <select class="form-select" id="event_type" name="event_type" required>
+                            <option value="">Выберите тип события</option>
+                            {% for type in EventType %}
+                            <option value="{{ type.name }}">{{ type.value }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="start_date" class="form-label">Дата начала *</label>
+                                <input type="datetime-local" class="form-control" id="start_date" name="start_date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="end_date" class="form-label">Дата окончания *</label>
+                                <input type="datetime-local" class="form-control" id="end_date" name="end_date" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="registration_deadline" class="form-label">Крайний срок регистрации *</label>
+                        <input type="datetime-local" class="form-control" id="registration_deadline" name="registration_deadline" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="max_participants" class="form-label">Максимальное количество участников</label>
+                        <input type="number" class="form-control" id="max_participants" name="max_participants" min="1">
+                        <div class="form-text">Оставьте пустым для неограниченного количества</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" checked>
+                        <label class="form-check-label" for="is_active">
+                            Событие активно
+                        </label>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Создать событие
+                        </button>
+                        <a href="{{ url_for('events') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Отмена
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Инструкции</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Все поля со звездочкой (*) обязательны</li>
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Дата начала должна быть раньше даты окончания</li>
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Крайний срок регистрации должен быть раньше даты начала</li>
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Неактивные события не будут отображаться пользователям</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

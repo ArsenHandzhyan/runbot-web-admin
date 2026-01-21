@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Создать челлендж - RunBot Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-trophy"></i> Создать новый челлендж</h1>
+        <p class="text-muted">Заполните форму для создания нового челленджа</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Информация о челлендже</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Название челленджа *</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Описание</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="challenge_type" class="form-label">Тип челленджа *</label>
+                        <select class="form-select" id="challenge_type" name="challenge_type" required>
+                            <option value="">Выберите тип челленджа</option>
+                            {% for type in ChallengeType %}
+                            <option value="{{ type.name }}">{{ translate_challenge_type(type) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="target_value" class="form-label">Целевое значение *</label>
+                                <input type="number" class="form-control" id="target_value" name="target_value" step="0.1" min="1" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="unit" class="form-label">Единица измерения *</label>
+                                <input type="text" class="form-control" id="unit" name="unit" placeholder="например: км, шт, мин" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="start_date" class="form-label">Дата начала *</label>
+                                <input type="datetime-local" class="form-control" id="start_date" name="start_date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="end_date" class="form-label">Дата окончания *</label>
+                                <input type="datetime-local" class="form-control" id="end_date" name="end_date" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" checked>
+                        <label class="form-check-label" for="is_active">
+                            Челлендж активен
+                        </label>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Создать челлендж
+                        </button>
+                        <a href="{{ url_for('challenges') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Отмена
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Инструкции</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Все поля со звездочкой (*) обязательны</li>
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Целевое значение - это количество, которое нужно выполнить</li>
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Единица измерения зависит от типа челленджа</li>
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Дата начала должна быть раньше даты окончания</li>
+                    <li class="mb-2"><i class="fas fa-info-circle text-primary"></i> Неактивные челленджи не будут отображаться пользователям</li>
+                </ul>
+                
+                <h6 class="mt-3">Примеры целевых значений:</h6>
+                <ul class="small">
+                    <li><strong>Бег:</strong> 5.0 км</li>
+                    <li><strong>Шаги:</strong> 10000 шт</li>
+                    <li><strong>Приседания:</strong> 50 шт</li>
+                    <li><strong>Планка:</strong> 2.5 мин</li>
+                    <li><strong>Отжимания:</strong> 20 шт</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

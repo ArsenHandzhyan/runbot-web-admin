@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать событие - RunBot Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-edit"></i> Редактировать событие</h1>
+        <p class="text-muted">Редактирование события "{{ event.name }}"</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Информация о событии</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Название события *</label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ event.name }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Описание</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ event.description }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="event_type" class="form-label">Тип события *</label>
+                        <select class="form-select" id="event_type" name="event_type" required>
+                            {% for type in EventType %}
+                            <option value="{{ type.name }}" {% if event.event_type.name == type.name %}selected{% endif %}>
+                                {{ type.value }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="start_date" class="form-label">Дата начала *</label>
+                                <input type="datetime-local" class="form-control" id="start_date" name="start_date" 
+                                       value="{{ event.start_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="end_date" class="form-label">Дата окончания *</label>
+                                <input type="datetime-local" class="form-control" id="end_date" name="end_date" 
+                                       value="{{ event.end_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="registration_deadline" class="form-label">Крайний срок регистрации *</label>
+                        <input type="datetime-local" class="form-control" id="registration_deadline" name="registration_deadline" 
+                               value="{{ event.registration_deadline.strftime('%Y-%m-%dT%H:%M') }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="max_participants" class="form-label">Максимальное количество участников</label>
+                        <input type="number" class="form-control" id="max_participants" name="max_participants" min="1"
+                               value="{{ event.max_participants if event.max_participants else '' }}">
+                        <div class="form-text">Оставьте пустым для неограниченного количества</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" 
+                               {% if event.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">
+                            Событие активно
+                        </label>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Сохранить изменения
+                        </button>
+                        <a href="{{ url_for('events') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Отмена
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Информация о событии</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2"><strong>ID:</strong> {{ event.id }}</li>
+                    <li class="mb-2"><strong>Создано:</strong> {{ event.created_at.strftime('%d.%m.%Y %H:%M') }}</li>
+                    <li class="mb-2"><strong>Участников:</strong> {{ event.registrations|length if event.registrations else 0 }}</li>
+                    <li class="mb-2"><strong>Статус:</strong> 
+                        {% if event.is_active %}
+                            <span class="badge bg-success">Активно</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Неактивно</span>
+                        {% endif %}
+                    </li>
+                </ul>
+                
+                {% if event.registrations %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Внимание!</strong> У события есть зарегистрированные участники ({{ event.registrations|length }}). 
+                    При изменении дат или типа события уведомите участников.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

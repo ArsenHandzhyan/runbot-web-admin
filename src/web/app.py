@@ -123,6 +123,101 @@ def create_app():
         finally:
             db.close()
     
+    @app.route('/events/create', methods=['GET', 'POST'])
+    @login_required
+    def create_event():
+        """Create new event"""
+        if request.method == 'POST':
+            try:
+                name = request.form['name']
+                description = request.form['description']
+                event_type = request.form['event_type']
+                start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%dT%H:%M')
+                end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%dT%H:%M')
+                registration_deadline = datetime.strptime(request.form['registration_deadline'], '%Y-%m-%dT%H:%M')
+                max_participants = int(request.form['max_participants']) if request.form['max_participants'] else None
+                
+                db = db_manager.get_session()
+                try:
+                    new_event = Event(
+                        name=name,
+                        description=description,
+                        event_type=EventType[event_type],
+                        start_date=start_date,
+                        end_date=end_date,
+                        registration_deadline=registration_deadline,
+                        max_participants=max_participants,
+                        is_active=True
+                    )
+                    db.add(new_event)
+                    db.commit()
+                    flash('Событие успешно создано!', 'success')
+                    return redirect(url_for('events'))
+                finally:
+                    db.close()
+            except Exception as e:
+                flash(f'Ошибка при создании события: {str(e)}', 'error')
+        
+        return render_template('create_event.html', EventType=EventType)
+    
+    @app.route('/events/<int:event_id>/edit', methods=['GET', 'POST'])
+    @login_required
+    def edit_event(event_id):
+        """Edit existing event"""
+        db = db_manager.get_session()
+        try:
+            event = db.query(Event).filter(Event.id == event_id).first()
+            if not event:
+                flash('Событие не найдено', 'error')
+                return redirect(url_for('events'))
+            
+            if request.method == 'POST':
+                try:
+                    event.name = request.form['name']
+                    event.description = request.form['description']
+                    event.event_type = EventType[request.form['event_type']]
+                    event.start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%dT%H:%M')
+                    event.end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%dT%H:%M')
+                    event.registration_deadline = datetime.strptime(request.form['registration_deadline'], '%Y-%m-%dT%H:%M')
+                    event.max_participants = int(request.form['max_participants']) if request.form['max_participants'] else None
+                    event.is_active = 'is_active' in request.form
+                    
+                    db.commit()
+                    flash('Событие успешно обновлено!', 'success')
+                    return redirect(url_for('events'))
+                except Exception as e:
+                    flash(f'Ошибка при обновлении события: {str(e)}', 'error')
+            
+            return render_template('edit_event.html', event=event, EventType=EventType)
+        finally:
+            db.close()
+    
+    @app.route('/events/<int:event_id>/delete', methods=['POST'])
+    @login_required
+    def delete_event(event_id):
+        """Delete event"""
+        db = db_manager.get_session()
+        try:
+            event = db.query(Event).filter(Event.id == event_id).first()
+            if not event:
+                flash('Событие не найдено', 'error')
+                return redirect(url_for('events'))
+            
+            # Check if event has registrations
+            if event.registrations:
+                flash('Нельзя удалить событие с участниками', 'error')
+                return redirect(url_for('events'))
+            
+            db.delete(event)
+            db.commit()
+            flash('Событие успешно удалено!', 'success')
+        except Exception as e:
+            flash(f'Ошибка при удалении события: {str(e)}', 'error')
+        finally:
+            db.close()
+        
+        return redirect(url_for('events'))
+    
     @app.route('/challenges')
     @login_required
     def challenges():
@@ -133,6 +228,101 @@ def create_app():
             return render_template('challenges.html', challenges=challenges_list, ChallengeType=ChallengeType)
         finally:
             db.close()
+    
+    @app.route('/challenges/create', methods=['GET', 'POST'])
+    @login_required
+    def create_challenge():
+        """Create new challenge"""
+        if request.method == 'POST':
+            try:
+                name = request.form['name']
+                description = request.form['description']
+                challenge_type = request.form['challenge_type']
+                target_value = float(request.form['target_value'])
+                unit = request.form['unit']
+                start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%dT%H:%M')
+                end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%dT%H:%M')
+                
+                db = db_manager.get_session()
+                try:
+                    new_challenge = Challenge(
+                        name=name,
+                        description=description,
+                        challenge_type=ChallengeType[challenge_type],
+                        target_value=target_value,
+                        unit=unit,
+                        start_date=start_date,
+                        end_date=end_date,
+                        is_active=True
+                    )
+                    db.add(new_challenge)
+                    db.commit()
+                    flash('Челлендж успешно создан!', 'success')
+                    return redirect(url_for('challenges'))
+                finally:
+                    db.close()
+            except Exception as e:
+                flash(f'Ошибка при создании челленджа: {str(e)}', 'error')
+        
+        return render_template('create_challenge.html', ChallengeType=ChallengeType)
+    
+    @app.route('/challenges/<int:challenge_id>/edit', methods=['GET', 'POST'])
+    @login_required
+    def edit_challenge(challenge_id):
+        """Edit existing challenge"""
+        db = db_manager.get_session()
+        try:
+            challenge = db.query(Challenge).filter(Challenge.id == challenge_id).first()
+            if not challenge:
+                flash('Челлендж не найден', 'error')
+                return redirect(url_for('challenges'))
+            
+            if request.method == 'POST':
+                try:
+                    challenge.name = request.form['name']
+                    challenge.description = request.form['description']
+                    challenge.challenge_type = ChallengeType[request.form['challenge_type']]
+                    challenge.target_value = float(request.form['target_value'])
+                    challenge.unit = request.form['unit']
+                    challenge.start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%dT%H:%M')
+                    challenge.end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%dT%H:%M')
+                    challenge.is_active = 'is_active' in request.form
+                    
+                    db.commit()
+                    flash('Челлендж успешно обновлен!', 'success')
+                    return redirect(url_for('challenges'))
+                except Exception as e:
+                    flash(f'Ошибка при обновлении челленджа: {str(e)}', 'error')
+            
+            return render_template('edit_challenge.html', challenge=challenge, ChallengeType=ChallengeType)
+        finally:
+            db.close()
+    
+    @app.route('/challenges/<int:challenge_id>/delete', methods=['POST'])
+    @login_required
+    def delete_challenge(challenge_id):
+        """Delete challenge"""
+        db = db_manager.get_session()
+        try:
+            challenge = db.query(Challenge).filter(Challenge.id == challenge_id).first()
+            if not challenge:
+                flash('Челлендж не найден', 'error')
+                return redirect(url_for('challenges'))
+            
+            # Check if challenge has submissions
+            if challenge.submissions:
+                flash('Нельзя удалить челлендж с отчетами', 'error')
+                return redirect(url_for('challenges'))
+            
+            db.delete(challenge)
+            db.commit()
+            flash('Челлендж успешно удален!', 'success')
+        except Exception as e:
+            flash(f'Ошибка при удалении челленджа: {str(e)}', 'error')
+        finally:
+            db.close()
+        
+        return redirect(url_for('challenges'))
     
     @app.route('/participants')
     @login_required
