@@ -183,7 +183,7 @@ class ChallengeManager:
                             message += f"✅ Вы зарегистрированы (номер: `{existing_registration.bib_number}`)\n"
                             message += "✅ Отчет за сегодня уже отправлен\n\n"
                         else:
-                            markup.row(telebot.types.InlineKeyboardButton("📊 Отправить отчет", callback_data="submit_report"))
+                            markup.row(telebot.types.InlineKeyboardButton("📊 Отправить отчет", callback_data=f"submit_challenge_{challenge.id}"))
                             message += f"✅ Вы зарегистрированы (номер: `{existing_registration.bib_number}`)\n"
                             message += "📊 Отправьте отчет о выполнении!\n\n"
                     else:
@@ -633,47 +633,58 @@ class ChallengeManager:
                 safe_send_message(self.bot, chat_id, "Челлендж не найден")
                 return
 
-            # Get participants registered for this challenge through submissions
-            # We need to get unique participants who have submissions for this challenge
-            participants_with_submissions = db.query(Participant, func.count(Submission.id).label('submission_count')).join(Submission).filter(
-                Submission.challenge_id == challenge_id,
-                Submission.status.in_([SubmissionStatus.PENDING, SubmissionStatus.APPROVED, SubmissionStatus.REJECTED])
-            ).group_by(Participant.id).order_by(func.count(Submission.id).desc()).all()
+            # Get participants registered for this challenge through ChallengeRegistration
+            # This shows ALL registered participants, not just those who submitted reports
+            registrations = db.query(ChallengeRegistration, Participant).join(Participant).filter(
+                ChallengeRegistration.challenge_id == challenge_id,
+                ChallengeRegistration.is_active == True
+            ).order_by(ChallengeRegistration.registration_date.desc()).all()
 
-            if not participants_with_submissions:
-                safe_send_message(self.bot, chat_id, f"На челлендж *{challenge.name}* пока никто не отправлял отчеты", parse_mode='Markdown')
+            if not registrations:
+                safe_send_message(self.bot, chat_id, f"На челлендж *{challenge.name}* пока никто не зарегистрировался", parse_mode='Markdown')
                 return
 
             # Create message
             message = f"*👥 Участники челленджа: {challenge.name}*\n\n"
             
-            for i, (participant, submission_count) in enumerate(participants_with_submissions, 1):
-                # Get latest submission for this participant and challenge
-                latest_submission = db.query(Submission).filter(
-                    Submission.participant_id == participant.id,
-                    Submission.challenge_id == challenge_id
-                ).order_by(Submission.submission_date.desc()).first()
-                
+            for i, (registration, participant) in enumerate(registrations, 1):
                 # Get participant's distance type if applicable
                 distance_info = ""
                 if participant.distance_type:
                     distance_name = "Взрослый забег" if participant.distance_type == DistanceType.ADULT_RUN else "Детский забег"
                     distance_info = f" | {distance_name}"
                 
-                # Get latest submission status
-                status_icon = {
-                    SubmissionStatus.PENDING: "⏳",
-                    SubmissionStatus.APPROVED: "✅",
-                    SubmissionStatus.REJECTED: "❌"
-                }.get(latest_submission.status if latest_submission else SubmissionStatus.PENDING, "❓")
+                # Check if participant has submitted reports
+                submission_count = db.query(Submission).filter(
+                    Submission.participant_id == participant.id,
+                    Submission.challenge_id == challenge_id
+                ).count()
+                
+                # Get latest submission status if exists
+                latest_submission = db.query(Submission).filter(
+                    Submission.participant_id == participant.id,
+                    Submission.challenge_id == challenge_id
+                ).order_by(Submission.submission_date.desc()).first()
+                
+                submission_info = f"📊 Отчетов: {submission_count}"
+                if latest_submission:
+                    status_icon = {
+                        SubmissionStatus.PENDING: "⏳",
+                        SubmissionStatus.APPROVED: "✅",
+                        SubmissionStatus.REJECTED: "❌"
+                    }.get(latest_submission.status, "❓")
+                    submission_info += f" | Последний: {status_icon} {latest_submission.result_value} {latest_submission.result_unit}"
+                else:
+                    submission_info += " | Нет отчетов"
                 
                 message += (
                     f"{i}. `{participant.start_number}` - {participant.full_name}\n"
-                    f"   📞 {participant.phone}{distance_info}\n"
-                    f"   📊 Отчетов: {submission_count} | Последний: {status_icon} {latest_submission.result_value if latest_submission else '-'} {latest_submission.result_unit if latest_submission else ''}\n\n"
+                    f"   📞 {participant.phone} | 📅 {registration.registration_date.strftime('%d.%m.%Y')}\n"
+                    f"   🏷️ Номер в челлендже: {registration.bib_number}{distance_info}\n"
+                    f"   {submission_info}\n\n"
                 )
             
-            message += f"📊 Всего участников с отчетами: {len(participants_with_submissions)}"
+            message += f"📊 Всего участников: {len(registrations)}"
 
             # Add navigation button
             markup = telebot.types.InlineKeyboardMarkup()

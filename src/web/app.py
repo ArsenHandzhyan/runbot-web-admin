@@ -13,7 +13,7 @@ from src.database.db import DatabaseManager
 from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus
 from src.utils.event_manager import EventManager
 from src.utils.challenge_manager import ChallengeManager
-import telebot
+# NOTE: telebot import removed - web interface doesn't need bot functionality
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -30,9 +30,10 @@ def create_app():
     
     # Initialize managers
     db_manager = DatabaseManager()
-    bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN'))
-    event_manager = EventManager(bot, db_manager)
-    challenge_manager = ChallengeManager(bot, db_manager)
+    # NOTE: Web interface doesn't need bot instance - only database access
+    # bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN'))  # REMOVED - causes conflicts
+    # event_manager = EventManager(bot, db_manager)  # REMOVED
+    # challenge_manager = ChallengeManager(bot, db_manager)  # REMOVED
     
     def login_required(f):
         @wraps(f)
