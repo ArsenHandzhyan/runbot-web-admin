@@ -35,6 +35,21 @@ def create_app():
     # event_manager = EventManager(bot, db_manager)  # REMOVED
     # challenge_manager = ChallengeManager(bot, db_manager)  # REMOVED
     
+    # Function to translate challenge types to Russian
+    def translate_challenge_type(challenge_type):
+        """Translate challenge type enum to Russian"""
+        translations = {
+            'PUSH_UPS': 'Отжимания',
+            'SQUATS': 'Приседания',
+            'PLANK': 'Планка',
+            'RUNNING': 'Бег',
+            'STEPS': 'Шаги'
+        }
+        return translations.get(challenge_type.name, challenge_type.value)
+    
+    # Make function available in templates
+    app.jinja_env.globals.update(translate_challenge_type=translate_challenge_type)
+    
     def login_required(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):

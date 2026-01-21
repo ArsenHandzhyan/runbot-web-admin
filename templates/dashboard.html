@@ -145,7 +145,7 @@
                         <p class="text-muted small mb-1">{{ challenge.description[:100] }}...</p>
                         <div class="d-flex justify-content-between">
                             <span class="badge bg-{{ 'primary' if challenge.challenge_type.name == 'RUNNING' else 'success' if challenge.challenge_type.name == 'PUSH_UPS' else 'warning' if challenge.challenge_type.name == 'SQUATS' else 'info' }}">
-                                {{ challenge.challenge_type.value }}
+                                {{ translate_challenge_type(challenge.challenge_type) }}
                             </span>
                             <span class="text-muted small">
                                 {{ challenge.created_at.strftime('%d.%m.%Y %H:%M') }}
