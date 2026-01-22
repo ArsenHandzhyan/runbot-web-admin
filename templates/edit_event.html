@@ -44,14 +44,14 @@
                             <div class="mb-3">
                                 <label for="start_date" class="form-label">Дата начала *</label>
                                 <input type="datetime-local" class="form-control" id="start_date" name="start_date" 
-                                       value="{{ event.start_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                                       value="{{ event.start_date.strftime('%Y-%m-%dT%H:%M') if event.start_date else '' }}" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="end_date" class="form-label">Дата окончания *</label>
                                 <input type="datetime-local" class="form-control" id="end_date" name="end_date" 
-                                       value="{{ event.end_date.strftime('%Y-%m-%dT%H:%M') }}" required>
+                                       value="{{ event.end_date.strftime('%Y-%m-%dT%H:%M') if event.end_date else '' }}" required>
                             </div>
                         </div>
                     </div>
@@ -59,7 +59,7 @@
                     <div class="mb-3">
                         <label for="registration_deadline" class="form-label">Крайний срок регистрации *</label>
                         <input type="datetime-local" class="form-control" id="registration_deadline" name="registration_deadline" 
-                               value="{{ event.registration_deadline.strftime('%Y-%m-%dT%H:%M') }}" required>
+                               value="{{ event.registration_deadline.strftime('%Y-%m-%dT%H:%M') if event.registration_deadline else '' }}" required>
                     </div>
                     
                     <div class="mb-3">
@@ -98,7 +98,7 @@
             <div class="card-body">
                 <ul class="list-unstyled">
                     <li class="mb-2"><strong>ID:</strong> {{ event.id }}</li>
-                    <li class="mb-2"><strong>Создано:</strong> {{ event.created_at.strftime('%d.%m.%Y %H:%M') }}</li>
+                    <li class="mb-2"><strong>Создано:</strong> {{ event.created_at.strftime('%d.%m.%Y %H:%M') if event.created_at else 'Не указано' }}</li>
                     <li class="mb-2"><strong>Участников:</strong> {{ event.registrations|length if event.registrations else 0 }}</li>
                     <li class="mb-2"><strong>Статус:</strong> 
                         {% if event.is_active %}
