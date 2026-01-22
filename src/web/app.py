@@ -363,20 +363,26 @@ def create_app():
                 Submission.challenge_id == challenge_id
             ).order_by(Submission.submission_date.desc()).all()
             
-            # Get participant info for each submission
+            # Get participant info for each submission and prepare data for template
             submissions_with_participants = []
             for submission in submissions:
                 participant = db.query(Participant).filter(
                     Participant.id == submission.participant_id
                 ).first()
+                
+                # Convert enum status to string for template comparison
+                status_value = submission.status.value if hasattr(submission.status, 'value') else str(submission.status)
+                
                 submissions_with_participants.append({
                     'submission': submission,
-                    'participant': participant
+                    'participant': participant,
+                    'status_value': status_value
                 })
             
             return render_template('challenge_submissions.html', 
                                  challenge=challenge,
-                                 submissions=submissions_with_participants)
+                                 submissions=submissions_with_participants,
+                                 SubmissionStatus=SubmissionStatus)
         finally:
             db.close()
     
