@@ -371,7 +371,21 @@ def create_app():
                 ).first()
                 
                 # Convert enum status to lowercase string for template comparison
-                status_value = submission.status.value.lower() if hasattr(submission.status, 'value') else str(submission.status).lower()
+                # Handle different enum representations
+                if hasattr(submission.status, 'value'):
+                    # Standard enum with value attribute
+                    status_value = submission.status.value.lower()
+                elif hasattr(submission.status, 'name'):
+                    # Enum with name attribute
+                    status_value = submission.status.name.lower()
+                else:
+                    # Fallback - convert to string and extract
+                    status_str = str(submission.status)
+                    if '.' in status_str:
+                        # Handle 'SubmissionStatus.APPROVED' format
+                        status_value = status_str.split('.')[-1].lower()
+                    else:
+                        status_value = status_str.lower()
                 
                 submissions_with_participants.append({
                     'submission': submission,
