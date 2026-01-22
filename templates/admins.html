@@ -179,8 +179,8 @@
                     <div class="col-md-6">
                         <h6>Переменные окружения:</h6>
                         <ul class="list-unstyled">
-                            <li><strong>ADMIN_TELEGRAM_IDS:</strong> {{ os.getenv('ADMIN_TELEGRAM_IDS', 'Не задано') }}</li>
-                            <li><strong>ADMIN_TELEGRAM_ID:</strong> {{ os.getenv('ADMIN_TELEGRAM_ID', 'Не задано') }}</li>
+                            <li><strong>ADMIN_TELEGRAM_IDS:</strong> {{ admin_telegram_ids or 'Не задано' }}</li>
+                            <li><strong>ADMIN_TELEGRAM_ID:</strong> {{ admin_telegram_id or 'Не задано' }}</li>
                         </ul>
                     </div>
                     <div class="col-md-6">

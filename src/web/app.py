@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 from src.database.db import DatabaseManager
-from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin
+from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType
 from src.utils.event_manager import EventManager
 from src.utils.challenge_manager import ChallengeManager
 # NOTE: telebot import removed - web interface doesn't need bot functionality
@@ -367,7 +367,10 @@ def create_app():
         db = db_manager.get_session()
         try:
             admins_list = db.query(Admin).order_by(Admin.added_at.desc()).all()
-            return render_template('admins.html', admins=admins_list)
+            return render_template('admins.html', 
+                                 admins=admins_list,
+                                 admin_telegram_ids=os.getenv('ADMIN_TELEGRAM_IDS'),
+                                 admin_telegram_id=os.getenv('ADMIN_TELEGRAM_ID'))
         finally:
             db.close()
     
