@@ -370,8 +370,8 @@ def create_app():
                     Participant.id == submission.participant_id
                 ).first()
                 
-                # Convert enum status to string for template comparison
-                status_value = submission.status.value if hasattr(submission.status, 'value') else str(submission.status)
+                # Convert enum status to lowercase string for template comparison
+                status_value = submission.status.value.lower() if hasattr(submission.status, 'value') else str(submission.status).lower()
                 
                 submissions_with_participants.append({
                     'submission': submission,
