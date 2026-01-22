@@ -4,7 +4,7 @@ Simple Flask-based admin panel for managing events, challenges and participants
 """
 
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from functools import wraps
 import logging
 from datetime import datetime
@@ -88,6 +88,13 @@ def create_app():
         finally:
             db.close()
     
+    @app.route('/media/<path:filename>')
+    @login_required
+    def serve_media(filename):
+        """Serve media files from media directory"""
+        media_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'media')
+        return send_from_directory(media_path, filename)
+
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         """Admin login"""

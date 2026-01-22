@@ -119,17 +119,17 @@
                     {% if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
                         <!-- Image files -->
                         <div class="text-center">
-                            <img src="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                            <img src="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                  class="img-fluid rounded border" 
                                  alt="Прикрепленное изображение"
                                  style="max-height: 500px;">
                             <div class="mt-2">
-                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                <a href="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                    class="btn btn-primary" 
                                    target="_blank">
                                     <i class="fas fa-external-link-alt"></i> Открыть в новой вкладке
                                 </a>
-                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                <a href="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                    class="btn btn-success" 
                                    download>
                                     <i class="fas fa-download"></i> Скачать
@@ -141,11 +141,11 @@
                         <!-- Video files -->
                         <div class="text-center">
                             <video controls class="img-fluid rounded border" style="max-height: 500px;">
-                                <source src="{{ url_for('static', filename='../' + submission.media_path) }}" type="video/{{ file_extension }}">
+                                <source src="{{ url_for('serve_media', filename=submission.media_path) }}" type="video/{{ file_extension }}">
                                 Ваш браузер не поддерживает видео тег.
                             </video>
                             <div class="mt-2">
-                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                <a href="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                    class="btn btn-success" 
                                    download>
                                     <i class="fas fa-download"></i> Скачать видео
@@ -156,18 +156,18 @@
                     {% elif file_extension in ['pdf'] %}
                         <!-- PDF files -->
                         <div class="text-center">
-                            <iframe src="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                            <iframe src="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                     class="img-fluid rounded border" 
                                     style="width: 100%; height: 500px;"
                                     frameborder="0">
                             </iframe>
                             <div class="mt-2">
-                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                <a href="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                    class="btn btn-success" 
                                    target="_blank">
                                     <i class="fas fa-external-link-alt"></i> Открыть PDF
                                 </a>
-                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                <a href="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                    class="btn btn-primary" 
                                    download>
                                     <i class="fas fa-download"></i> Скачать PDF
@@ -180,10 +180,10 @@
                         <div class="alert alert-info">
                             <h6><i class="fas fa-file-alt"></i> Текстовый документ</h6>
                             <p>Этот файл является текстовым документом.</p>
-                            <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                            <a href="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                class="btn btn-success" 
                                download>
-                                <i class="fas fa-download"></i> Скачать документ
+                                 <i class="fas fa-download"></i> Скачать документ
                             </a>
                         </div>
                     
@@ -192,10 +192,10 @@
                         <div class="alert alert-warning">
                             <h6><i class="fas fa-file"></i> Файл другого типа</h6>
                             <p>Этот файл имеет расширение .{{ file_extension }} и может потребовать специального программного обеспечения для просмотра.</p>
-                            <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                            <a href="{{ url_for('serve_media', filename=submission.media_path) }}" 
                                class="btn btn-success" 
                                download>
-                                <i class="fas fa-download"></i> Скачать файл
+                                 <i class="fas fa-download"></i> Скачать файл
                             </a>
                         </div>
                     {% endif %}
