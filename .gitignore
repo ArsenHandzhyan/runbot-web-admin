@@ -175,4 +175,6 @@ media/
 *.pid
 *.sock
 *.swp
-.DS_Store
+.DS_Store.env
+.env.backup
+.env.example.r2.new
