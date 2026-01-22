@@ -410,18 +410,24 @@ def create_app():
         """View pending submissions for moderation"""
         db = db_manager.get_session()
         try:
-            # Get pending submissions
-            pending_submissions = db.query(Submission).filter(
-                Submission.status == SubmissionStatus.PENDING
-            ).order_by(Submission.submission_date.asc()).all()
-            
-            # Get all submissions (for overview)
-            all_submissions = db.query(Submission).order_by(Submission.submission_date.desc()).limit(50).all()
-            
+            try:
+                # Get pending submissions
+                pending_submissions = db.query(Submission).filter(
+                    Submission.status == SubmissionStatus.PENDING
+                ).order_by(Submission.submission_date.asc()).all()
+
+                # Get all submissions (for overview)
+                all_submissions = db.query(Submission).order_by(Submission.submission_date.desc()).limit(50).all()
+            except Exception as e:
+                # Log and render with empty data to avoid 500 on UI
+                logger.exception("Ошибка при загрузке данных модерации: %s", e)
+                pending_submissions = []
+                all_submissions = []
+
             # Prepare data for templates
             pending_with_details = []
             all_with_details = []
-            
+
             for submission in pending_submissions:
                 participant = db.query(Participant).filter(
                     Participant.id == submission.participant_id
@@ -429,13 +435,13 @@ def create_app():
                 challenge = db.query(Challenge).filter(
                     Challenge.id == submission.challenge_id
                 ).first()
-                
+
                 pending_with_details.append({
                     'submission': submission,
                     'participant': participant,
                     'challenge': challenge
                 })
-            
+
             for submission in all_submissions:
                 participant = db.query(Participant).filter(
                     Participant.id == submission.participant_id
@@ -443,7 +449,7 @@ def create_app():
                 challenge = db.query(Challenge).filter(
                     Challenge.id == submission.challenge_id
                 ).first()
-                
+
                 # Convert status for template
                 if hasattr(submission.status, 'value'):
                     status_value = submission.status.value.lower()
@@ -455,18 +461,26 @@ def create_app():
                         status_value = status_str.split('.')[-1].lower()
                     else:
                         status_value = status_str.lower()
-                
+
                 all_with_details.append({
                     'submission': submission,
                     'participant': participant,
                     'challenge': challenge,
                     'status_value': status_value
                 })
-            
+
             return render_template('moderation.html',
                                  pending_submissions=pending_with_details,
                                  all_submissions=all_with_details,
                                  SubmissionStatus=SubmissionStatus)
+        except Exception as e:
+            # Final fallback: log and show a user-friendly error on the page
+            logger.exception("Unhandled error on moderation page: %s", e)
+            flash('Ошибка загрузки модерации. Попробуйте позже.', 'error')
+            return render_template('moderation.html',
+                                   pending_submissions=[],
+                                   all_submissions=[],
+                                   SubmissionStatus=SubmissionStatus)
         finally:
             db.close()
     
