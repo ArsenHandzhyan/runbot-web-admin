@@ -112,6 +112,7 @@
                                 <th>Результат</th>
                                 <th>Статус</th>
                                 <th>Комментарий</th>
+                                <th>Файлы</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -150,6 +151,79 @@
                                         <span class="badge bg-danger">❌ Отклонен</span>
                                     {% else %}
                                         <span class="badge bg-warning">⏳ На рассмотрении</span>
+                                        <!-- Moderation buttons for pending submissions -->
+                                        <div class="mt-2">
+                                            <button type="button" 
+                                                    class="btn btn-success btn-sm" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#approveModal{{ submission.id }}">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                            <button type="button" 
+                                                    class="btn btn-danger btn-sm" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#rejectModal{{ submission.id }}">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Approve Modal -->
+                                        <div class="modal fade" id="approveModal{{ submission.id }}" tabindex="-1">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <form method="POST" action="{{ url_for('approve_submission', submission_id=submission.id) }}">
+                                                        <div class="modal-header bg-success text-white">
+                                                            <h5 class="modal-title">Одобрить отчет</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <p><strong>Участник:</strong> {{ participant.full_name if participant else 'Участник удален' }}</p>
+                                                            <p><strong>Челлендж:</strong> {{ challenge.name }}</p>
+                                                            <p><strong>Результат:</strong> {{ submission.result_value }} {{ submission.result_unit }}</p>
+                                                            <div class="mb-3">
+                                                                <label for="approveComment{{ submission.id }}" class="form-label">Комментарий (необязательно):</label>
+                                                                <textarea class="form-control" id="approveComment{{ submission.id }}" name="comment" rows="3" placeholder="Добавьте комментарий к одобрению..."></textarea>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                                            <button type="submit" class="btn btn-success">
+                                                                <i class="fas fa-check"></i> Одобрить
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Reject Modal -->
+                                        <div class="modal fade" id="rejectModal{{ submission.id }}" tabindex="-1">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <form method="POST" action="{{ url_for('reject_submission', submission_id=submission.id) }}">
+                                                        <div class="modal-header bg-danger text-white">
+                                                            <h5 class="modal-title">Отклонить отчет</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <p><strong>Участник:</strong> {{ participant.full_name if participant else 'Участник удален' }}</p>
+                                                            <p><strong>Челлендж:</strong> {{ challenge.name }}</p>
+                                                            <p><strong>Результат:</strong> {{ submission.result_value }} {{ submission.result_unit }}</p>
+                                                            <div class="mb-3">
+                                                                <label for="rejectComment{{ submission.id }}" class="form-label">Комментарий (обязательно):</label>
+                                                                <textarea class="form-control" id="rejectComment{{ submission.id }}" name="comment" rows="3" placeholder="Укажите причину отклонения..." required></textarea>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                                            <button type="submit" class="btn btn-danger">
+                                                                <i class="fas fa-times"></i> Отклонить
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -157,6 +231,17 @@
                                         {{ submission.comment[:50] }}{% if submission.comment|length > 50 %}...{% endif %}
                                     {% else %}
                                         <span class="text-muted">Без комментария</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if submission.media_path %}
+                                        <a href="{{ url_for('view_submission_media', submission_id=submission.id) }}" 
+                                           class="btn btn-outline-primary btn-sm" 
+                                           title="Просмотреть прикрепленные файлы">
+                                            <i class="fas fa-paperclip"></i> Файлы
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">Нет файлов</span>
                                     {% endif %}
                                 </td>
                             </tr>

@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+
+{% block title %}Детали отчета - RunBot Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1><i class="fas fa-file-alt"></i> Детали отчета</h1>
+                <p class="text-muted mb-0">Просмотр отчета участника</p>
+            </div>
+            <div>
+                <a href="{{ url_for('moderation') }}" class="btn btn-secondary me-2">
+                    <i class="fas fa-arrow-left"></i> Назад к модерации
+                </a>
+                <a href="{{ url_for('challenge_submissions', challenge_id=challenge.id) }}" class="btn btn-outline-primary">
+                    <i class="fas fa-list"></i> Все отчеты челленджа
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Submission Details -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-info-circle"></i> Информация об отчете
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-trophy"></i> Челлендж</h6>
+                        <p>
+                            <span class="badge bg-{{ 'primary' if challenge.challenge_type.name == 'RUNNING' else 'success' if challenge.challenge_type.name == 'PUSH_UPS' else 'warning' if challenge.challenge_type.name == 'SQUATS' else 'info' }}">
+                                {{ translate_challenge_type(challenge.challenge_type) }}
+                            </span>
+                            <br>
+                            <strong>{{ challenge.name }}</strong>
+                        </p>
+                        
+                        <h6><i class="fas fa-user"></i> Участник</h6>
+                        <p>
+                            {% if participant %}
+                                <strong>{{ participant.full_name }}</strong><br>
+                                <i class="fas fa-phone"></i> {{ participant.phone }}<br>
+                                <i class="fas fa-hashtag"></i> Регистрационный номер: <code>{{ participant.start_number }}</code>
+                            {% else %}
+                                <span class="text-muted">Участник удален</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-chart-line"></i> Результат</h6>
+                        <p>
+                            <span class="badge bg-primary fs-5">
+                                {{ submission.result_value }} {{ submission.result_unit }}
+                            </span>
+                        </p>
+                        
+                        <h6><i class="fas fa-calendar"></i> Дата отправки</h6>
+                        <p>{{ submission.submission_date.strftime('%d.%m.%Y %H:%M') }}</p>
+                        
+                        <h6><i class="fas fa-flag"></i> Статус</h6>
+                        <p>
+                            {% if status_value == 'approved' %}
+                                <span class="badge bg-success fs-6">✅ Одобрен</span>
+                            {% elif status_value == 'rejected' %}
+                                <span class="badge bg-danger fs-6">❌ Отклонен</span>
+                            {% else %}
+                                <span class="badge bg-warning fs-6">⏳ На рассмотрении</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                
+                {% if submission.comment %}
+                <div class="mt-3">
+                    <h6><i class="fas fa-comment"></i> Комментарий участника</h6>
+                    <div class="alert alert-info">
+                        {{ submission.comment }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if submission.moderator_comment %}
+                <div class="mt-3">
+                    <h6><i class="fas fa-user-shield"></i> Комментарий модератора</h6>
+                    <div class="alert alert-secondary">
+                        {{ submission.moderator_comment }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Media Section -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-paperclip"></i> Прикрепленные файлы
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if submission.media_path %}
+                    {% set file_extension = submission.media_path.split('.')[-1].lower() if '.' in submission.media_path else '' %}
+                    
+                    <div class="mb-3">
+                        <h6>Файл: <code>{{ submission.media_path.split('/')[-1] }}</code></h6>
+                        <p class="text-muted">Путь к файлу: {{ submission.media_path }}</p>
+                    </div>
+                    
+                    <!-- Display based on file type -->
+                    {% if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                        <!-- Image files -->
+                        <div class="text-center">
+                            <img src="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                 class="img-fluid rounded border" 
+                                 alt="Прикрепленное изображение"
+                                 style="max-height: 500px;">
+                            <div class="mt-2">
+                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                   class="btn btn-primary" 
+                                   target="_blank">
+                                    <i class="fas fa-external-link-alt"></i> Открыть в новой вкладке
+                                </a>
+                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                   class="btn btn-success" 
+                                   download>
+                                    <i class="fas fa-download"></i> Скачать
+                                </a>
+                            </div>
+                        </div>
+                    
+                    {% elif file_extension in ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'] %}
+                        <!-- Video files -->
+                        <div class="text-center">
+                            <video controls class="img-fluid rounded border" style="max-height: 500px;">
+                                <source src="{{ url_for('static', filename='../' + submission.media_path) }}" type="video/{{ file_extension }}">
+                                Ваш браузер не поддерживает видео тег.
+                            </video>
+                            <div class="mt-2">
+                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                   class="btn btn-success" 
+                                   download>
+                                    <i class="fas fa-download"></i> Скачать видео
+                                </a>
+                            </div>
+                        </div>
+                    
+                    {% elif file_extension in ['pdf'] %}
+                        <!-- PDF files -->
+                        <div class="text-center">
+                            <iframe src="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                    class="img-fluid rounded border" 
+                                    style="width: 100%; height: 500px;"
+                                    frameborder="0">
+                            </iframe>
+                            <div class="mt-2">
+                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                   class="btn btn-success" 
+                                   target="_blank">
+                                    <i class="fas fa-external-link-alt"></i> Открыть PDF
+                                </a>
+                                <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                                   class="btn btn-primary" 
+                                   download>
+                                    <i class="fas fa-download"></i> Скачать PDF
+                                </a>
+                            </div>
+                        </div>
+                    
+                    {% elif file_extension in ['txt', 'doc', 'docx'] %}
+                        <!-- Text/Document files -->
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-file-alt"></i> Текстовый документ</h6>
+                            <p>Этот файл является текстовым документом.</p>
+                            <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                               class="btn btn-success" 
+                               download>
+                                <i class="fas fa-download"></i> Скачать документ
+                            </a>
+                        </div>
+                    
+                    {% else %}
+                        <!-- Other file types -->
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-file"></i> Файл другого типа</h6>
+                            <p>Этот файл имеет расширение .{{ file_extension }} и может потребовать специального программного обеспечения для просмотра.</p>
+                            <a href="{{ url_for('static', filename='../' + submission.media_path) }}" 
+                               class="btn btn-success" 
+                               download>
+                                <i class="fas fa-download"></i> Скачать файл
+                            </a>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-file-upload fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">Нет прикрепленных файлов</h4>
+                        <p class="text-muted">Участник не прикрепил файлы к этому отчету</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Moderation Actions -->
+    <div class="col-lg-4">
+        {% if status_value == 'pending' %}
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-user-shield"></i> Модерация
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Этот отчет находится на проверке. Вы можете одобрить или отклонить его.</p>
+                
+                <div class="d-grid gap-2">
+                    <button type="button" 
+                            class="btn btn-success" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#approveModal">
+                        <i class="fas fa-check"></i> Одобрить отчет
+                    </button>
+                    
+                    <button type="button" 
+                            class="btn btn-danger" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#rejectModal">
+                        <i class="fas fa-times"></i> Отклонить отчет
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% elif status_value == 'approved' %}
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-check-circle"></i> Отчет одобрен
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">Этот отчет уже одобрен и не требует дополнительной модерации.</p>
+            </div>
+        </div>
+        {% elif status_value == 'rejected' %}
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-times-circle"></i> Отчет отклонен
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">Этот отчет был отклонен и не требует дополнительной модерации.</p>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Quick Stats -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-bar"></i> Статистика участника
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if participant %}
+                    {% set participant_submissions = participant.submissions|length %}
+                    {% set approved_count = participant.submissions|selectattr('status.name', 'equalto', 'APPROVED')|list|length %}
+                    {% set pending_count = participant.submissions|selectattr('status.name', 'equalto', 'PENDING')|list|length %}
+                    
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fas fa-file-alt text-primary"></i> 
+                            Всего отчетов: <strong>{{ participant_submissions }}</strong>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success"></i> 
+                            Одобрено: <strong>{{ approved_count }}</strong>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-clock text-warning"></i> 
+                            На проверке: <strong>{{ pending_count }}</strong>
+                        </li>
+                        <li>
+                            <i class="fas fa-percentage text-info"></i> 
+                            Процент одобрения: 
+                            <strong>
+                                {% if participant_submissions > 0 %}
+                                    {{ "%.1f"|format((approved_count / participant_submissions * 100)) }}%
+                                {% else %}
+                                    0%
+                                {% endif %}
+                            </strong>
+                        </li>
+                    </ul>
+                {% else %}
+                    <p class="text-muted">Статистика недоступна - участник удален</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approve Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('approve_submission', submission_id=submission.id) }}">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">Одобрить отчет</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Участник:</strong> {{ participant.full_name if participant else 'Участник удален' }}</p>
+                    <p><strong>Челлендж:</strong> {{ challenge.name if challenge else 'Челлендж удален' }}</p>
+                    <p><strong>Результат:</strong> {{ submission.result_value }} {{ submission.result_unit }}</p>
+                    <div class="mb-3">
+                        <label for="approveComment" class="form-label">Комментарий (необязательно):</label>
+                        <textarea class="form-control" id="approveComment" name="comment" rows="3" placeholder="Добавьте комментарий к одобрению..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check"></i> Одобрить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('reject_submission', submission_id=submission.id) }}">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Отклонить отчет</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Участник:</strong> {{ participant.full_name if participant else 'Участник удален' }}</p>
+                    <p><strong>Челлендж:</strong> {{ challenge.name if challenge else 'Челлендж удален' }}</p>
+                    <p><strong>Результат:</strong> {{ submission.result_value }} {{ submission.result_unit }}</p>
+                    <div class="mb-3">
+                        <label for="rejectComment" class="form-label">Комментарий (обязательно):</label>
+                        <textarea class="form-control" id="rejectComment" name="comment" rows="3" placeholder="Укажите причину отклонения..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-times"></i> Отклонить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -69,6 +69,9 @@ def create_app():
             events_count = db.query(Event).filter(Event.is_active == True).count()
             challenges_count = db.query(Challenge).filter(Challenge.is_active == True).count()
             submissions_count = db.query(Submission).count()
+            pending_submissions_count = db.query(Submission).filter(
+                Submission.status == SubmissionStatus.PENDING
+            ).count()
             
             # Get recent activity
             recent_events = db.query(Event).filter(Event.is_active == True).order_by(Event.created_at.desc()).limit(5).all()
@@ -79,6 +82,7 @@ def create_app():
                                  events_count=events_count,
                                  challenges_count=challenges_count,
                                  submissions_count=submissions_count,
+                                 pending_submissions_count=pending_submissions_count,
                                  recent_events=recent_events,
                                  recent_challenges=recent_challenges)
         finally:
@@ -397,6 +401,159 @@ def create_app():
                                  challenge=challenge,
                                  submissions=submissions_with_participants,
                                  SubmissionStatus=SubmissionStatus)
+        finally:
+            db.close()
+    
+    @app.route('/moderation')
+    @login_required
+    def moderation():
+        """View pending submissions for moderation"""
+        db = db_manager.get_session()
+        try:
+            # Get pending submissions
+            pending_submissions = db.query(Submission).filter(
+                Submission.status == SubmissionStatus.PENDING
+            ).order_by(Submission.submission_date.asc()).all()
+            
+            # Get all submissions (for overview)
+            all_submissions = db.query(Submission).order_by(Submission.submission_date.desc()).limit(50).all()
+            
+            # Prepare data for templates
+            pending_with_details = []
+            all_with_details = []
+            
+            for submission in pending_submissions:
+                participant = db.query(Participant).filter(
+                    Participant.id == submission.participant_id
+                ).first()
+                challenge = db.query(Challenge).filter(
+                    Challenge.id == submission.challenge_id
+                ).first()
+                
+                pending_with_details.append({
+                    'submission': submission,
+                    'participant': participant,
+                    'challenge': challenge
+                })
+            
+            for submission in all_submissions:
+                participant = db.query(Participant).filter(
+                    Participant.id == submission.participant_id
+                ).first()
+                challenge = db.query(Challenge).filter(
+                    Challenge.id == submission.challenge_id
+                ).first()
+                
+                # Convert status for template
+                if hasattr(submission.status, 'value'):
+                    status_value = submission.status.value.lower()
+                elif hasattr(submission.status, 'name'):
+                    status_value = submission.status.name.lower()
+                else:
+                    status_str = str(submission.status)
+                    if '.' in status_str:
+                        status_value = status_str.split('.')[-1].lower()
+                    else:
+                        status_value = status_str.lower()
+                
+                all_with_details.append({
+                    'submission': submission,
+                    'participant': participant,
+                    'challenge': challenge,
+                    'status_value': status_value
+                })
+            
+            return render_template('moderation.html',
+                                 pending_submissions=pending_with_details,
+                                 all_submissions=all_with_details,
+                                 SubmissionStatus=SubmissionStatus)
+        finally:
+            db.close()
+    
+    @app.route('/moderation/approve/<int:submission_id>', methods=['POST'])
+    @login_required
+    def approve_submission(submission_id):
+        """Approve a submission"""
+        try:
+            db = db_manager.get_session()
+            try:
+                submission = db.query(Submission).get(submission_id)
+                if not submission:
+                    flash('Отчет не найден', 'error')
+                    return redirect(url_for('moderation'))
+                
+                submission.status = SubmissionStatus.APPROVED
+                submission.moderator_comment = request.form.get('comment', '')
+                db.commit()
+                
+                flash('Отчет успешно одобрен!', 'success')
+            finally:
+                db.close()
+        except Exception as e:
+            flash(f'Ошибка при одобрении отчета: {str(e)}', 'error')
+        
+        return redirect(url_for('moderation'))
+    
+    @app.route('/moderation/reject/<int:submission_id>', methods=['POST'])
+    @login_required
+    def reject_submission(submission_id):
+        """Reject a submission"""
+        try:
+            db = db_manager.get_session()
+            try:
+                submission = db.query(Submission).get(submission_id)
+                if not submission:
+                    flash('Отчет не найден', 'error')
+                    return redirect(url_for('moderation'))
+                
+                submission.status = SubmissionStatus.REJECTED
+                submission.moderator_comment = request.form.get('comment', '')
+                db.commit()
+                
+                flash('Отчет успешно отклонен!', 'success')
+            finally:
+                db.close()
+        except Exception as e:
+            flash(f'Ошибка при отклонении отчета: {str(e)}', 'error')
+        
+        return redirect(url_for('moderation'))
+    
+    @app.route('/submissions/<int:submission_id>/media')
+    @login_required
+    def view_submission_media(submission_id):
+        """View media attached to a submission"""
+        db = db_manager.get_session()
+        try:
+            submission = db.query(Submission).get(submission_id)
+            if not submission:
+                flash('Отчет не найден', 'error')
+                return redirect(url_for('moderation'))
+            
+            participant = db.query(Participant).filter(
+                Participant.id == submission.participant_id
+            ).first()
+            
+            challenge = db.query(Challenge).filter(
+                Challenge.id == submission.challenge_id
+            ).first()
+            
+            # Convert status for template
+            if hasattr(submission.status, 'value'):
+                status_value = submission.status.value.lower()
+            elif hasattr(submission.status, 'name'):
+                status_value = submission.status.name.lower()
+            else:
+                status_str = str(submission.status)
+                if '.' in status_str:
+                    status_value = status_str.split('.')[-1].lower()
+                else:
+                    status_value = status_str.lower()
+            
+            return render_template('submission_detail.html',
+                                 submission=submission,
+                                 participant=participant,
+                                 challenge=challenge,
+                                 status_value=status_value)
         finally:
             db.close()
     
