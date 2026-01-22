@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 from src.database.db import DatabaseManager
-from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus
+from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin
 from src.utils.event_manager import EventManager
 from src.utils.challenge_manager import ChallengeManager
 # NOTE: telebot import removed - web interface doesn't need bot functionality
@@ -359,6 +359,121 @@ def create_app():
                                  submissions_by_status=submissions_by_status)
         finally:
             db.close()
+    
+    @app.route('/admins')
+    @login_required
+    def admins():
+        """Manage administrators"""
+        db = db_manager.get_session()
+        try:
+            admins_list = db.query(Admin).order_by(Admin.added_at.desc()).all()
+            return render_template('admins.html', admins=admins_list)
+        finally:
+            db.close()
+    
+    @app.route('/admins/add', methods=['POST'])
+    @login_required
+    def add_admin():
+        """Add new administrator"""
+        try:
+            telegram_id = request.form['telegram_id'].strip()
+            username = request.form.get('username', '').strip() or None
+            full_name = request.form.get('full_name', '').strip() or None
+            
+            if not telegram_id.isdigit():
+                flash('Telegram ID должен быть числом', 'error')
+                return redirect(url_for('admins'))
+            
+            db = db_manager.get_session()
+            try:
+                # Check if admin already exists
+                existing_admin = db.query(Admin).filter(Admin.telegram_id == telegram_id).first()
+                if existing_admin:
+                    if existing_admin.is_active:
+                        flash('Администратор с таким Telegram ID уже существует', 'error')
+                    else:
+                        # Reactivate existing admin
+                        existing_admin.is_active = True
+                        existing_admin.username = username
+                        existing_admin.full_name = full_name
+                        existing_admin.added_at = datetime.utcnow()
+                        db.commit()
+                        flash('Администратор успешно восстановлен!', 'success')
+                else:
+                    # Create new admin
+                    new_admin = Admin(
+                        telegram_id=telegram_id,
+                        username=username,
+                        full_name=full_name,
+                        added_by=session.get('admin_username', 'web_admin')
+                    )
+                    db.add(new_admin)
+                    db.commit()
+                    flash('Администратор успешно добавлен!', 'success')
+            finally:
+                db.close()
+        except Exception as e:
+            flash(f'Ошибка при добавлении администратора: {str(e)}', 'error')
+        
+        return redirect(url_for('admins'))
+    
+    @app.route('/admins/<int:admin_id>/delete', methods=['POST'])
+    @login_required
+    def delete_admin(admin_id):
+        """Delete administrator permanently"""
+        try:
+            db = db_manager.get_session()
+            try:
+                admin = db.query(Admin).filter(Admin.id == admin_id).first()
+                if not admin:
+                    flash('Администратор не найден', 'error')
+                    return redirect(url_for('admins'))
+                
+                # Prevent deletion of the last admin
+                active_admins_count = db.query(Admin).filter(Admin.is_active == True).count()
+                if active_admins_count <= 1:
+                    flash('Нельзя удалить последнего активного администратора', 'error')
+                    return redirect(url_for('admins'))
+                
+                # Permanent deletion
+                db.delete(admin)
+                db.commit()
+                flash('Администратор успешно удален!', 'success')
+            finally:
+                db.close()
+        except Exception as e:
+            flash(f'Ошибка при удалении администратора: {str(e)}', 'error')
+        
+        return redirect(url_for('admins'))
+    
+    @app.route('/admins/<int:admin_id>/deactivate', methods=['POST'])
+    @login_required
+    def deactivate_admin(admin_id):
+        """Deactivate administrator (soft delete)"""
+        try:
+            db = db_manager.get_session()
+            try:
+                admin = db.query(Admin).filter(Admin.id == admin_id).first()
+                if not admin:
+                    flash('Администратор не найден', 'error')
+                    return redirect(url_for('admins'))
+                
+                # Prevent deactivation of the last admin
+                active_admins_count = db.query(Admin).filter(Admin.is_active == True).count()
+                if active_admins_count <= 1 and admin.is_active:
+                    flash('Нельзя деактивировать последнего активного администратора', 'error')
+                    return redirect(url_for('admins'))
+                
+                # Soft delete
+                admin.is_active = False
+                db.commit()
+                flash('Администратор успешно деактивирован!', 'success')
+            finally:
+                db.close()
+        except Exception as e:
+            flash(f'Ошибка при деактивации администратора: {str(e)}', 'error')
+        
+        return redirect(url_for('admins'))
     
     return app
 

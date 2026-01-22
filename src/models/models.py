@@ -113,6 +113,22 @@ class ParticipantStats(Base):
     # Relationships
     participant = relationship("Participant", back_populates="statistics")
 
+class Admin(Base):
+    """Admin model - manages bot administrators"""
+    __tablename__ = 'admins'
+    
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(String, unique=True, nullable=False)
+    username = Column(String)
+    full_name = Column(String)
+    added_by = Column(String)  # Who added this admin
+    added_at = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+    
+    def __repr__(self):
+        return f"<Admin(telegram_id='{self.telegram_id}', username='{self.username}')>"
+
+
 class AdminAction(Base):
     """Admin action log - tracks admin activities"""
     __tablename__ = 'admin_actions'
