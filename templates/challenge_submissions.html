@@ -144,9 +144,9 @@
                                     </span>
                                 </td>
                                 <td>
-                                    {% if status_value == 'approved' %}
+                                    {% if item.status_value == 'approved' %}
                                         <span class="badge bg-success">✅ Одобрен</span>
-                                    {% elif status_value == 'rejected' %}
+                                    {% elif item.status_value == 'rejected' %}
                                         <span class="badge bg-danger">❌ Отклонен</span>
                                     {% else %}
                                         <span class="badge bg-warning">⏳ На рассмотрении</span>
