@@ -21,18 +21,24 @@ class DatabaseManager:
         self.database_url = database_url or os.getenv('DATABASE_URL')
         if not self.database_url:
             raise ValueError("DATABASE_URL environment variable is required")
-            
-        self.engine = create_engine(
+        
+        engine = create_engine(
             self.database_url,
             pool_pre_ping=True,
             pool_recycle=300,
-            echo=False  # Set to True for SQL debugging
+            echo=False
         )
+        self.engine = engine
         self.SessionLocal = sessionmaker(
             autocommit=False, 
             autoflush=False, 
             bind=self.engine
         )
+        # Initialize database schema (create tables if not exists)
+        try:
+            self.init_database()
+        except Exception as e:
+            logger.warning(f"Init database failed: {e}")
     
     def init_database(self):
         """Initialize database tables"""
@@ -96,3 +102,4 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+ 
