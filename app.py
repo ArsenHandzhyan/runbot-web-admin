@@ -6,8 +6,12 @@ Separate web interface that can run independently from the Telegram bot
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
-# Add the current directory to Python path
+# Load environment variables from .env file
+load_dotenv()
+
+# Add current directory to Python path
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
