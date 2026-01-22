@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 from src.database.db import DatabaseManager
-from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType
+from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, ChallengeRegistration
 from src.utils.event_manager import EventManager
 from src.utils.challenge_manager import ChallengeManager
 # NOTE: telebot import removed - web interface doesn't need bot functionality
@@ -224,8 +224,31 @@ def create_app():
         """Manage challenges"""
         db = db_manager.get_session()
         try:
+            # Get all challenges
             challenges_list = db.query(Challenge).order_by(Challenge.created_at.desc()).all()
-            return render_template('challenges.html', challenges=challenges_list, ChallengeType=ChallengeType)
+            
+            # Add participant and submission counts to each challenge
+            challenges_with_counts = []
+            for challenge in challenges_list:
+                # Count participants
+                participant_count = db.query(ChallengeRegistration).filter(
+                    ChallengeRegistration.challenge_id == challenge.id,
+                    ChallengeRegistration.is_active == True
+                ).count()
+                
+                # Count submissions
+                submission_count = db.query(Submission).filter(
+                    Submission.challenge_id == challenge.id
+                ).count()
+                
+                # Add counts to challenge object
+                challenge.participant_count = participant_count
+                challenge.submission_count = submission_count
+                challenges_with_counts.append(challenge)
+            
+            return render_template('challenges.html', 
+                                 challenges=challenges_with_counts, 
+                                 ChallengeType=ChallengeType)
         finally:
             db.close()
     
@@ -323,6 +346,39 @@ def create_app():
             db.close()
         
         return redirect(url_for('challenges'))
+    
+    @app.route('/challenges/<int:challenge_id>/submissions')
+    @login_required
+    def challenge_submissions(challenge_id):
+        """View submissions for specific challenge"""
+        db = db_manager.get_session()
+        try:
+            challenge = db.query(Challenge).filter(Challenge.id == challenge_id).first()
+            if not challenge:
+                flash('Челлендж не найден', 'error')
+                return redirect(url_for('challenges'))
+            
+            # Get all submissions for this challenge
+            submissions = db.query(Submission).filter(
+                Submission.challenge_id == challenge_id
+            ).order_by(Submission.submission_date.desc()).all()
+            
+            # Get participant info for each submission
+            submissions_with_participants = []
+            for submission in submissions:
+                participant = db.query(Participant).filter(
+                    Participant.id == submission.participant_id
+                ).first()
+                submissions_with_participants.append({
+                    'submission': submission,
+                    'participant': participant
+                })
+            
+            return render_template('challenge_submissions.html', 
+                                 challenge=challenge,
+                                 submissions=submissions_with_participants)
+        finally:
+            db.close()
     
     @app.route('/participants')
     @login_required

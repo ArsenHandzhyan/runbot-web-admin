@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Отчеты по челленджу "{{ challenge.name }}" - RunBot Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1><i class="fas fa-file-alt"></i> Отчеты по челленджу</h1>
+                <h2 class="text-primary">{{ challenge.name }}</h2>
+                <p class="text-muted mb-0">
+                    <span class="badge bg-{{ 'primary' if challenge.challenge_type.name == 'RUNNING' else 'success' if challenge.challenge_type.name == 'PUSH_UPS' else 'warning' if challenge.challenge_type.name == 'SQUATS' else 'info' }}">
+                        {{ translate_challenge_type(challenge.challenge_type) }}
+                    </span>
+                    | Цель: {{ challenge.target_value }} {{ challenge.unit }}
+                </p>
+            </div>
+            <a href="{{ url_for('challenges') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Назад к челленджам
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Challenge Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Участники</h5>
+                        <h2>{{ submissions|length }}</h2>
+                    </div>
+                    <div class="fs-1">
+                        <i class="fas fa-users"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Отчеты</h5>
+                        <h2>{{ submissions|length }}</h2>
+                    </div>
+                    <div class="fs-1">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Период</h5>
+                        <small>{{ challenge.start_date.strftime('%d.%m.%Y') }} - {{ challenge.end_date.strftime('%d.%m.%Y') }}</small>
+                    </div>
+                    <div class="fs-1">
+                        <i class="fas fa-calendar"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-{{ 'success' if challenge.is_active else 'secondary' }}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Статус</h5>
+                        <h2>{{ 'Активен' if challenge.is_active else 'Завершен' }}</h2>
+                    </div>
+                    <div class="fs-1">
+                        <i class="fas fa-{{ 'check' if challenge.is_active else 'times' }}"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Submissions Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-list"></i> Отчеты участников ({{ submissions|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if submissions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>№</th>
+                                <th>Участник</th>
+                                <th>Номер участника</th>
+                                <th>Дата отчета</th>
+                                <th>Результат</th>
+                                <th>Статус</th>
+                                <th>Комментарий</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in submissions %}
+                            {% set submission = item.submission %}
+                            {% set participant = item.participant %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>
+                                    {% if participant %}
+                                        <strong>{{ participant.full_name }}</strong>
+                                        <br><small class="text-muted">{{ participant.phone }}</small>
+                                    {% else %}
+                                        <span class="text-muted">Участник удален</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if participant %}
+                                        <code>{{ participant.start_number }}</code>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ submission.submission_date.strftime('%d.%m.%Y %H:%M') }}
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">
+                                        {{ submission.result_value }} {{ submission.result_unit }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if submission.status == 'approved' %}
+                                        <span class="badge bg-success">✅ Одобрен</span>
+                                    {% elif submission.status == 'rejected' %}
+                                        <span class="badge bg-danger">❌ Отклонен</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">⏳ На рассмотрении</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if submission.comment %}
+                                        {{ submission.comment[:50] }}{% if submission.comment|length > 50 %}...{% endif %}
+                                    {% else %}
+                                        <span class="text-muted">Без комментария</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">Пока нет отчетов</h4>
+                    <p class="text-muted">Участники еще не отправили отчеты по этому челленджу</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
