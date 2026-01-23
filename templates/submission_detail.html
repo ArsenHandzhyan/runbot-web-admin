@@ -118,6 +118,7 @@
                      <!-- Display based on file type -->
                      {% if submission.media_path %}
                          {% if submission.media_path.startswith('r2://') %}
+                             <!-- R2 file with signed URL -->
                              <div id="media-container-{{ submission.id }}" class="text-center">
                                  <div class="spinner-border" role="status">
                                      <span class="visually-hidden">Loading...</span>
@@ -132,16 +133,15 @@
                                          if (data.url) {
                                              const container = document.getElementById('media-container-{{ submission.id }}');
                                              const extension = '{{ submission.media_path.split(".")[-1] }}';
-                                             const url = data.url;
 
                                              if (extension.match(/(jpg|jpeg|png|gif|webp)/i)) {
                                                  container.innerHTML = `
-                                                     <img src="${url}" class="img-fluid rounded border" alt="Прикрепленное изображение" style="max-height: 500px;">
+                                                     <img src="${data.url}" class="img-fluid rounded border" alt="Прикрепленное изображение" style="max-height: 500px;">
                                                      <div class="mt-2">
-                                                         <a href="${url}" class="btn btn-primary" target="_blank">
+                                                         <a href="${data.url}" class="btn btn-primary" target="_blank">
                                                              <i class="fas fa-external-link-alt"></i> Открыть в новой вкладке
                                                          </a>
-                                                         <a href="${url}" class="btn btn-success" download>
+                                                         <a href="${data.url}" class="btn btn-success" download>
                                                              <i class="fas fa-download"></i> Скачать
                                                          </a>
                                                      </div>
@@ -149,11 +149,11 @@
                                              } else if (extension.match(/(mp4|avi|mov|webm)/i)) {
                                                  container.innerHTML = `
                                                      <video controls class="img-fluid rounded border" style="max-height: 500px;">
-                                                         <source src="${url}" type="video/${extension}">
+                                                         <source src="${data.url}" type="video/${extension}">
                                                          Ваш браузер не поддерживает видео тег.
                                                      </video>
                                                      <div class="mt-2">
-                                                         <a href="${url}" class="btn btn-success" download>
+                                                         <a href="${data.url}" class="btn btn-success" download>
                                                              <i class="fas fa-download"></i> Скачать видео
                                                          </a>
                                                      </div>
@@ -163,7 +163,7 @@
                                                      <div class="alert alert-info">
                                                          <h6><i class="fas fa-file-alt"></i> Файл</h6>
                                                          <p>Файл типа: ${extension}</p>
-                                                         <a href="${url}" class="btn btn-success" download>
+                                                         <a href="${data.url}" class="btn btn-success" download>
                                                              <i class="fas fa-download"></i> Скачать файл
                                                          </a>
                                                      </div>
@@ -188,19 +188,12 @@
                              {% if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
                                  <!-- Image files -->
                                  <div class="text-center">
-                                     <img src="{{ media_url }}"
-                                          class="img-fluid rounded border"
-                                          alt="Прикрепленное изображение"
-                                          style="max-height: 500px;">
+                                     <img src="{{ media_url }}" class="img-fluid rounded border" alt="Прикрепленное изображение" style="max-height: 500px;">
                                      <div class="mt-2">
-                                         <a href="{{ media_url }}"
-                                            class="btn btn-primary"
-                                            target="_blank">
+                                         <a href="{{ media_url }}" class="btn btn-primary" target="_blank">
                                              <i class="fas fa-external-link-alt"></i> Открыть в новой вкладке
                                          </a>
-                                         <a href="{{ media_url }}"
-                                            class="btn btn-success"
-                                            download>
+                                         <a href="{{ media_url }}" class="btn btn-success" download>
                                              <i class="fas fa-download"></i> Скачать
                                          </a>
                                      </div>
@@ -213,9 +206,7 @@
                                          Ваш браузер не поддерживает видео тег.
                                      </video>
                                      <div class="mt-2">
-                                         <a href="{{ media_url }}"
-                                            class="btn btn-success"
-                                            download>
+                                         <a href="{{ media_url }}" class="btn btn-success" download>
                                              <i class="fas fa-download"></i> Скачать видео
                                          </a>
                                      </div>
@@ -223,20 +214,12 @@
                              {% elif file_extension in ['pdf'] %}
                                  <!-- PDF files -->
                                  <div class="text-center">
-                                     <iframe src="{{ media_url }}"
-                                             class="img-fluid rounded border"
-                                             style="width: 100%; height: 500px;"
-                                             frameborder="0">
-                                     </iframe>
+                                     <iframe src="{{ media_url }}" class="img-fluid rounded border" style="width: 100%; height: 500px;" frameborder="0"></iframe>
                                      <div class="mt-2">
-                                         <a href="{{ media_url }}"
-                                            class="btn btn-success"
-                                            target="_blank">
+                                         <a href="{{ media_url }}" class="btn btn-success" target="_blank">
                                              <i class="fas fa-external-link-alt"></i> Открыть PDF
                                          </a>
-                                         <a href="{{ media_url }}"
-                                            class="btn btn-primary"
-                                            download>
+                                         <a href="{{ media_url }}" class="btn btn-primary" download>
                                              <i class="fas fa-download"></i> Скачать PDF
                                          </a>
                                      </div>
@@ -246,10 +229,8 @@
                                  <div class="alert alert-info">
                                      <h6><i class="fas fa-file-alt"></i> Файл</h6>
                                      <p>Файл типа: {{ file_extension }}</p>
-                                     <a href="{{ media_url }}"
-                                        class="btn btn-success"
-                                        download>
-                                       <i class="fas fa-download"></i> Скачать файл
+                                     <a href="{{ media_url }}" class="btn btn-success" download>
+                                         <i class="fas fa-download"></i> Скачать файл
                                      </a>
                                  </div>
                              {% endif %}
