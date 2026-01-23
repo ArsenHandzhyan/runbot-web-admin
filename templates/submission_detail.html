@@ -116,14 +116,75 @@
                     </div>
                     
                      <!-- Display based on file type -->
-                     {% if submission.media_path and submission.media_path.startswith('https://') %}
-                         {% set media_url = submission.media_path %}
-                         {% set file_extension = submission.media_path.split('.')[-1] %}
-                     {% else %}
-                         {% set media_url = url_for('serve_media', filename=submission.media_path) %}
-                         {% set file_extension = submission.media_path.split('.')[-1] if submission.media_path else '' %}
-                     {% endif %}
-                     {% if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                     {% if submission.media_path %}
+                         {% if submission.media_path.startswith('r2://') %}
+                             <div id="media-container-{{ submission.id }}" class="text-center">
+                                 <div class="spinner-border" role="status">
+                                     <span class="visually-hidden">Loading...</span>
+                                 </div>
+                                 <p>Загрузка файла...</p>
+                             </div>
+                             <script>
+                                 // Load signed URL for R2 file
+                                 fetch('/get-file-url/{{ submission.media_path | urlencode }}')
+                                     .then(response => response.json())
+                                     .then(data => {
+                                         if (data.url) {
+                                             const container = document.getElementById('media-container-{{ submission.id }}');
+                                             const extension = '{{ submission.media_path.split(".")[-1] }}';
+                                             const url = data.url;
+
+                                             if (extension.match(/(jpg|jpeg|png|gif|webp)/i)) {
+                                                 container.innerHTML = `
+                                                     <img src="${url}" class="img-fluid rounded border" alt="Прикрепленное изображение" style="max-height: 500px;">
+                                                     <div class="mt-2">
+                                                         <a href="${url}" class="btn btn-primary" target="_blank">
+                                                             <i class="fas fa-external-link-alt"></i> Открыть в новой вкладке
+                                                         </a>
+                                                         <a href="${url}" class="btn btn-success" download>
+                                                             <i class="fas fa-download"></i> Скачать
+                                                         </a>
+                                                     </div>
+                                                 `;
+                                             } else if (extension.match(/(mp4|avi|mov|webm)/i)) {
+                                                 container.innerHTML = `
+                                                     <video controls class="img-fluid rounded border" style="max-height: 500px;">
+                                                         <source src="${url}" type="video/${extension}">
+                                                         Ваш браузер не поддерживает видео тег.
+                                                     </video>
+                                                     <div class="mt-2">
+                                                         <a href="${url}" class="btn btn-success" download>
+                                                             <i class="fas fa-download"></i> Скачать видео
+                                                         </a>
+                                                     </div>
+                                                 `;
+                                             } else {
+                                                 container.innerHTML = `
+                                                     <div class="alert alert-info">
+                                                         <h6><i class="fas fa-file-alt"></i> Файл</h6>
+                                                         <p>Файл типа: ${extension}</p>
+                                                         <a href="${url}" class="btn btn-success" download>
+                                                             <i class="fas fa-download"></i> Скачать файл
+                                                         </a>
+                                                     </div>
+                                                 `;
+                                             }
+                                         } else {
+                                             document.getElementById('media-container-{{ submission.id }}').innerHTML =
+                                                 '<div class="alert alert-danger">Ошибка загрузки файла</div>';
+                                         }
+                                     })
+                                     .catch(error => {
+                                         console.error('Error loading file:', error);
+                                         document.getElementById('media-container-{{ submission.id }}').innerHTML =
+                                             '<div class="alert alert-danger">Ошибка загрузки файла</div>';
+                                     });
+                             </script>
+                         {% else %}
+                             {% set media_url = url_for('serve_media', filename=submission.media_path) %}
+                             {% set file_extension = submission.media_path.split('.')[-1] if submission.media_path else '' %}
+
+                             {% if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
                          <!-- Image files -->
                          <div class="text-center">
                              <img src="{{ media_url }}"

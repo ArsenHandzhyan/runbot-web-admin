@@ -662,6 +662,22 @@ def create_app():
         <p>Current working dir: {os.getcwd()}</p>
         """
 
+    @app.route('/get-file-url/<path:file_path>')
+    @login_required
+    def get_file_url(file_path):
+        """Generate signed URL for R2 files"""
+        try:
+            from src.utils.storage import StorageManager
+            storage = StorageManager()
+            url = storage.get_file_url(file_path)
+            if url:
+                return {'url': url}, 200
+            else:
+                return {'error': 'File not found'}, 404
+        except Exception as e:
+            logger.error(f"Error generating file URL: {e}")
+            return {'error': str(e)}, 500
+
     @app.route('/debug-media/<int:submission_id>')
     @login_required
     def debug_media(submission_id):
