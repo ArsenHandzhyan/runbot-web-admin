@@ -76,10 +76,11 @@ class StorageManager:
                     'MAX_TOTAL_FILES': str(getattr(r2_config, 'MAX_TOTAL_FILES', 1000)),
                 }
 
-                logger.info(f"Loaded config STORAGE_TYPE: {env_vars['STORAGE_TYPE']}...")
-                logger.info(f"R2_ACCESS_KEY_ID loaded: {'Yes' if env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID'] else 'No'}")
-                logger.info(f"R2_SECRET_ACCESS_KEY loaded: {'Yes' if env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY'] else 'No'}")
-                logger.info(f"R2_ACCOUNT_ID loaded: {'Yes' if env_vars['CLOUDFLARE_R2_ACCOUNT_ID'] else 'No'}")
+                logger.info(f"Loaded config STORAGE_TYPE: {env_vars['STORAGE_TYPE']}")
+                logger.info(f"R2_ACCESS_KEY_ID: '{env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID'][:10]}...' (len={len(env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID'])})")
+                logger.info(f"R2_SECRET_ACCESS_KEY: '{env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY'][:10]}...' (len={len(env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY'])})")
+                logger.info(f"R2_ACCOUNT_ID: '{env_vars['CLOUDFLARE_R2_ACCOUNT_ID'][:10]}...' (len={len(env_vars['CLOUDFLARE_R2_ACCOUNT_ID'])})")
+                logger.info(f"R2_BUCKET: '{env_vars['CLOUDFLARE_R2_BUCKET']}'")
 
                 # Only set if not already set
                 for key, value in env_vars.items():
@@ -311,8 +312,45 @@ class StorageManager:
         """Legacy method - files should already be uploaded via upload_file()"""
         logger.warning(f"upload_file_from_path called with {file_path} - this method is deprecated")
         logger.warning("Files should be uploaded directly using upload_file() method")
-        # This is a no-op - file should already be in correct location
-        return file_path
+
+        # Check if this is a duplicate call (file already in R2)
+        if file_path.startswith('r2://'):
+            logger.info(f"File {file_path} is already in R2, skipping duplicate upload")
+            return file_path
+
+        # Check if file exists
+        if not os.path.exists(file_path):
+            logger.error(f"File {file_path} does not exist for upload")
+            return file_path
+
+        # Try to read and upload the file
+        try:
+            with open(file_path, 'rb') as f:
+                file_data = f.read()
+
+            # Create file-like object
+            from io import BytesIO
+            file_obj = BytesIO(file_data)
+            # Add required attributes
+            setattr(file_obj, 'filename', os.path.basename(file_path))
+            setattr(file_obj, 'content_type', 'application/octet-stream')  # Default
+
+            # Upload using normal method
+            result = self.upload_file(file_obj, os.path.basename(file_path))
+            logger.info(f"Successfully uploaded {file_path} to {result['path']}")
+
+            # Clean up local file after successful upload
+            try:
+                os.remove(file_path)
+                logger.info(f"Cleaned up local file {file_path}")
+            except Exception as e:
+                logger.warning(f"Could not clean up {file_path}: {e}")
+
+            return result['path']
+
+        except Exception as e:
+            logger.error(f"Error in upload_file_from_path for {file_path}: {e}")
+            return file_path
 
     def get_storage_stats(self):
         """Получить статистику хранилища"""
