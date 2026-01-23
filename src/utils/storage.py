@@ -21,15 +21,59 @@ class StorageManager:
     """Управление файлами с поддержкой Cloudflare R2 и Render Disk"""
 
     def __init__(self):
+        # Try to load from r2_config.py if environment variables are not set
+        self._load_config()
+
         self.storage_type = os.getenv('STORAGE_TYPE', 'render_disk')  # 'r2' или 'render_disk'
         self.max_size_mb = int(os.getenv('MAX_UPLOAD_SIZE_MB', '10'))
-        
+
         # Ограничения по типам файлов
         self.max_sizes = {
             'image': int(os.getenv('MAX_IMAGE_SIZE_MB', '5')),
             'video': int(os.getenv('MAX_VIDEO_SIZE_MB', '50')),
             'document': int(os.getenv('MAX_DOCUMENT_SIZE_MB', '10'))
         }
+
+    def _load_config(self):
+        """Load configuration from r2_config.py if environment variables are not set"""
+        try:
+            # Check if r2_config.py exists and load it
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'r2_config.py')
+            if os.path.exists(config_path):
+                import sys
+                config_dir = os.path.dirname(config_path)
+                if config_dir not in sys.path:
+                    sys.path.insert(0, config_dir)
+
+                import r2_config
+
+                # Set environment variables from config if not already set
+                env_vars = {
+                    'STORAGE_TYPE': getattr(r2_config, 'STORAGE_TYPE', 'render_disk'),
+                    'CLOUDFLARE_R2_ACCESS_KEY_ID': getattr(r2_config, 'R2_ACCESS_KEY_ID', ''),
+                    'CLOUDFLARE_R2_SECRET_ACCESS_KEY': getattr(r2_config, 'R2_SECRET_ACCESS_KEY', ''),
+                    'CLOUDFLARE_R2_ACCOUNT_ID': getattr(r2_config, 'R2_ACCOUNT_ID', ''),
+                    'CLOUDFLARE_R2_BUCKET': getattr(r2_config, 'R2_BUCKET_NAME', ''),
+                    'MAX_UPLOAD_SIZE_MB': str(getattr(r2_config, 'MAX_UPLOAD_SIZE_MB', 10)),
+                    'MAX_IMAGE_SIZE_MB': str(getattr(r2_config, 'MAX_IMAGE_SIZE_MB', 5)),
+                    'MAX_VIDEO_SIZE_MB': str(getattr(r2_config, 'MAX_VIDEO_SIZE_MB', 50)),
+                    'MAX_DOCUMENT_SIZE_MB': str(getattr(r2_config, 'MAX_DOCUMENT_SIZE_MB', 10)),
+                    'MAX_FILES_PER_USER': str(getattr(r2_config, 'MAX_FILES_PER_USER', 5)),
+                    'MAX_TOTAL_FILES': str(getattr(r2_config, 'MAX_TOTAL_FILES', 1000)),
+                }
+
+                # Only set if not already set
+                for key, value in env_vars.items():
+                    if not os.getenv(key) and value:
+                        os.environ[key] = value
+
+                logger.info("Loaded configuration from r2_config.py")
+            else:
+                logger.info("r2_config.py not found, using environment variables")
+
+        except Exception as e:
+            logger.warning(f"Error loading r2_config.py: {e}")
+            logger.info("Falling back to environment variables")
         
         if self.storage_type == 'r2' and BOTO3_AVAILABLE:
             # Настройка R2
