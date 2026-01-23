@@ -44,5 +44,5 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-# Start the application
-python app.py
+# Start the application (wrapper with Web prefix)
+python WebApp.py
