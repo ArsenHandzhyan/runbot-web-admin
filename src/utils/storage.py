@@ -77,10 +77,18 @@ class StorageManager:
                 }
 
                 logger.info(f"Loaded config STORAGE_TYPE: {env_vars['STORAGE_TYPE']}")
-                logger.info(f"R2_ACCESS_KEY_ID: '{env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID'][:10]}...' (len={len(env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID'])})")
-                logger.info(f"R2_SECRET_ACCESS_KEY: '{env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY'][:10]}...' (len={len(env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY'])})")
-                logger.info(f"R2_ACCOUNT_ID: '{env_vars['CLOUDFLARE_R2_ACCOUNT_ID'][:10]}...' (len={len(env_vars['CLOUDFLARE_R2_ACCOUNT_ID'])})")
+                logger.info(f"R2_ACCESS_KEY_ID loaded: {len(env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID'])} chars")
+                logger.info(f"R2_SECRET_ACCESS_KEY loaded: {len(env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY'])} chars")
+                logger.info(f"R2_ACCOUNT_ID loaded: {len(env_vars['CLOUDFLARE_R2_ACCOUNT_ID'])} chars")
                 logger.info(f"R2_BUCKET: '{env_vars['CLOUDFLARE_R2_BUCKET']}'")
+
+                # Debug: show if values look like placeholders
+                if 'ВАШ_' in env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID']:
+                    logger.error("R2_ACCESS_KEY_ID contains placeholder text - please fill with real credentials!")
+                if 'ВАШ_' in env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY']:
+                    logger.error("R2_SECRET_ACCESS_KEY contains placeholder text - please fill with real credentials!")
+                if 'ВАШ_' in env_vars['CLOUDFLARE_R2_ACCOUNT_ID']:
+                    logger.error("R2_ACCOUNT_ID contains placeholder text - please fill with real credentials!")
 
                 # Only set if not already set
                 for key, value in env_vars.items():
@@ -323,7 +331,13 @@ class StorageManager:
             logger.error(f"File {file_path} does not exist for upload")
             return file_path
 
-        # Try to read and upload the file
+        # Check if we're trying to copy to the same location (render_disk fallback)
+        if self.storage_type == 'render_disk':
+            # For render_disk, just return the local path
+            logger.info(f"Storage type is render_disk, keeping local file: {file_path}")
+            return file_path
+
+        # For R2 storage, upload the file
         try:
             with open(file_path, 'rb') as f:
                 file_data = f.read()
