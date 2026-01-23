@@ -743,10 +743,10 @@ class ChallengeManager:
                 self.bot.answer_callback_query(call.id)
                 self.register_for_challenge(call.message.chat.id, challenge_id)
             # Handle submission
-            elif callback_data.startswith('challenge_submit_'):
+            elif callback_data.startswith('submit_challenge_'):
                 challenge_id = int(callback_data.split('_')[2])
                 self.bot.answer_callback_query(call.id)
-                self.start_submission(call.message.chat.id, challenge_id)
+                self.start_submission_process(call.message.chat.id)
             # Handle challenge stats
             elif callback_data.startswith('challenge_stats_'):
                 challenge_id = int(callback_data.split('_')[2])
