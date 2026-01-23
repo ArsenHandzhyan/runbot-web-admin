@@ -178,3 +178,6 @@ media/
 .DS_Store.env
 .env.backup
 .env.example.r2.new
+
+# Session files
+cookies.txt
