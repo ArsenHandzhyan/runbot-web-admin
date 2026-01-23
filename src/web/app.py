@@ -675,30 +675,25 @@ def create_app():
                 db.add(challenge)
                 challenges.append(challenge)
 
-            # Demo files (placeholder names for Cloudflare R2)
+            # Commit to get IDs
+            db.commit()
+
+            # Demo files uploaded to Cloudflare R2
             demo_files = ['demo-text-001.txt', 'demo-excel-001.csv', 'demo-document-001.pdf', 'demo-image-001.jpg', 'demo-video-001.mp4', 'demo-video-002.mp4']
 
-            # Create demo submissions
+            # Create demo submissions with proper IDs
             submissions_data = [
-                {'participant': participants[0], 'challenge': challenges[0], 'result_value': 50.0, 'result_unit': 'отжиманий', 'comment': 'Отлично выполнил! Прилагаю фото тренировки.', 'media_path': demo_files[0], 'status': SubmissionStatus.APPROVED},
-                {'participant': participants[1], 'challenge': challenges[1], 'result_value': 10.5, 'result_unit': 'км', 'comment': 'Пробежал 10.5 км! GPS трек во вложении.', 'media_path': demo_files[1], 'status': SubmissionStatus.APPROVED},
-                {'participant': participants[2], 'challenge': challenges[2], 'result_value': 3.2, 'result_unit': 'минуты', 'comment': 'Удержал планку 3 минуты 12 секунд! Видео прилагаю.', 'media_path': demo_files[2], 'status': SubmissionStatus.PENDING},
-                {'participant': participants[0], 'challenge': challenges[1], 'result_value': 8.7, 'result_unit': 'км', 'comment': 'Сегодняшняя пробежка. Фото с маршрута.', 'media_path': demo_files[3], 'status': SubmissionStatus.PENDING},
-                {'participant': participants[1], 'challenge': challenges[0], 'result_value': 45.0, 'result_unit': 'отжиманий', 'comment': '45 отжиманий! Результаты тренировки в PDF.', 'media_path': demo_files[4], 'status': SubmissionStatus.PENDING},
-                {'participant': participants[2], 'challenge': challenges[1], 'result_value': 12.3, 'result_unit': 'км', 'comment': 'Длинная пробежка! Видео с маршрута.', 'media_path': demo_files[5], 'status': SubmissionStatus.APPROVED}
+                {'participant_id': participants[0].id, 'challenge_id': challenges[0].id, 'result_value': 50.0, 'result_unit': 'отжиманий', 'comment': 'Отлично выполнил! Прилагаю фото тренировки.', 'media_path': demo_files[0], 'status': SubmissionStatus.APPROVED},
+                {'participant_id': participants[1].id, 'challenge_id': challenges[1].id, 'result_value': 10.5, 'result_unit': 'км', 'comment': 'Пробежал 10.5 км! GPS трек во вложении.', 'media_path': demo_files[1], 'status': SubmissionStatus.APPROVED},
+                {'participant_id': participants[2].id, 'challenge_id': challenges[2].id, 'result_value': 3.2, 'result_unit': 'минуты', 'comment': 'Удержал планку 3 минуты 12 секунд! Видео прилагаю.', 'media_path': demo_files[2], 'status': SubmissionStatus.PENDING},
+                {'participant_id': participants[0].id, 'challenge_id': challenges[1].id, 'result_value': 8.7, 'result_unit': 'км', 'comment': 'Сегодняшняя пробежка. Фото с маршрута.', 'media_path': demo_files[3], 'status': SubmissionStatus.PENDING},
+                {'participant_id': participants[1].id, 'challenge_id': challenges[0].id, 'result_value': 45.0, 'result_unit': 'отжиманий', 'comment': '45 отжиманий! Результаты тренировки в PDF.', 'media_path': demo_files[4], 'status': SubmissionStatus.PENDING},
+                {'participant_id': participants[2].id, 'challenge_id': challenges[1].id, 'result_value': 12.3, 'result_unit': 'км', 'comment': 'Длинная пробежка! Видео с маршрута.', 'media_path': demo_files[5], 'status': SubmissionStatus.APPROVED}
             ]
 
             submissions = []
             for s_data in submissions_data:
-                submission = Submission(
-                    participant_id=s_data['participant'].id,
-                    challenge_id=s_data['challenge'].id,
-                    result_value=s_data['result_value'],
-                    result_unit=s_data['result_unit'],
-                    comment=s_data['comment'],
-                    media_path=s_data['media_path'],
-                    status=s_data['status']
-                )
+                submission = Submission(**s_data)
                 db.add(submission)
                 submissions.append(submission)
 
