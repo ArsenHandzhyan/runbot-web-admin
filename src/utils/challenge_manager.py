@@ -311,30 +311,39 @@ class ChallengeManager:
     def handle_media_upload(self, message):
         """Handle media upload during submission process"""
         chat_id = message.chat.id
-        
+        logger.info(f"handle_media_upload called for user {chat_id}")
+
         if chat_id not in self.active_submissions:
+            logger.warning(f"User {chat_id} not in active submissions")
             return
-        
+
         submission_data = self.active_submissions[chat_id]
         step = submission_data['step']
-        
+        logger.info(f"Current step for user {chat_id}: {step}")
+
         if step != 'upload_media':
+            logger.info(f"Step {step} != 'upload_media', ignoring media upload")
             return
-        
+
         try:
+            logger.info(f"Saving media for user {chat_id}")
             # Save media file
             media_path = self._save_media(message)
             if not media_path:
+                logger.error(f"Failed to save media for user {chat_id}")
                 safe_send_message(self.bot, chat_id, "Ошибка при сохранении файла")
                 return
-            
+
+            logger.info(f"Media saved successfully: {media_path} for user {chat_id}")
             submission_data['data']['media_path'] = media_path
             submission_data['step'] = 'enter_result'
-            
+            logger.info(f"Step changed to 'enter_result' for user {chat_id}")
+
             # Ask for result based on challenge type
             challenge_type = submission_data['data']['challenge_type']
             result_prompt = self._get_result_prompt(challenge_type)
-            
+            logger.info(f"Asking for result with prompt: {result_prompt}")
+
             # Create persistent keyboard
             def create_persistent_keyboard():
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
@@ -342,13 +351,14 @@ class ChallengeManager:
                 markup.row('🏆 Челленджи', '📊 Статистика')
                 markup.row('ℹ️ Помощь', '🏠 Главное меню')
                 return markup
-            
+
             markup = create_persistent_keyboard()
-            safe_send_message(self.bot, 
+            safe_send_message(self.bot,
                 chat_id,
                 f"Файл загружен ✅\n\n{result_prompt}",
                 reply_markup=markup
             )
+            logger.info(f"Result prompt sent to user {chat_id}")
             
         except Exception as e:
             logger.error(f"Media upload error: {e}")
@@ -593,21 +603,56 @@ class ChallengeManager:
             from pathlib import Path
             from io import BytesIO
 
+            logger.info("_save_media: Starting to save media file")
+
             # Handle different media types
             if message.photo:
+                logger.info("_save_media: Processing photo")
                 file_info = self.bot.get_file(message.photo[-1].file_id)
                 file_extension = ".jpg"
                 content_type = "image/jpeg"
             elif message.video:
+                logger.info("_save_media: Processing video")
                 file_info = self.bot.get_file(message.video.file_id)
                 file_extension = ".mp4"
                 content_type = "video/mp4"
             elif message.document:
+                logger.info("_save_media: Processing document")
                 file_info = self.bot.get_file(message.document.file_id)
                 file_extension = Path(message.document.file_name).suffix or ".dat"
                 content_type = message.document.mime_type or "application/octet-stream"
             else:
+                logger.warning("_save_media: Unknown media type")
                 return None
+
+            logger.info(f"_save_media: File info received: {file_info.file_path}")
+
+            # Generate unique filename
+            filename = f"{uuid.uuid4()}{file_extension}"
+            logger.info(f"_save_media: Will save as: {filename}")
+
+            # Download file
+            downloaded_file = self.bot.download_file(file_info.file_path)
+            logger.info(f"_save_media: Downloaded file size: {len(downloaded_file)} bytes")
+
+            # Create file-like object for StorageManager
+            file_obj = BytesIO(downloaded_file)
+            # Add required attributes
+            setattr(file_obj, 'filename', filename)
+            setattr(file_obj, 'content_type', content_type)
+
+            # Upload using StorageManager
+            storage = get_storage_manager()
+            result = storage.upload_file(file_obj, filename)
+
+            logger.info(f"_save_media: File uploaded to storage: {result['path']} ({result['size_mb']:.2f}MB)")
+            return result['path']
+
+        except Exception as e:
+            logger.error(f"_save_media: Error saving media: {e}")
+            import traceback
+            logger.error(f"_save_media: Traceback: {traceback.format_exc()}")
+            return None
 
             # Generate unique filename
             filename = f"{uuid.uuid4()}{file_extension}"
