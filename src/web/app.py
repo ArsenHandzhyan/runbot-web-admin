@@ -676,7 +676,7 @@ def create_app():
                 challenges.append(challenge)
 
             # Demo files (placeholder names for Cloudflare R2)
-            demo_files = ['demo-text-001.txt', 'demo-excel-001.xlsx', 'demo-video-001.mp4', 'demo-image-001.jpg', 'demo-document-001.pdf', 'demo-video-002.mp4']
+            demo_files = ['demo-text-001.txt', 'demo-excel-001.csv', 'demo-document-001.pdf', 'demo-image-001.jpg', 'demo-video-001.mp4', 'demo-video-002.mp4']
 
             # Create demo submissions
             submissions_data = [
