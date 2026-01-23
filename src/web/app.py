@@ -238,7 +238,7 @@ def create_app():
     @app.route('/events/<int:event_id>/delete', methods=['POST'])
     @login_required
     def delete_event(event_id):
-        """Delete event"""
+        """Delete event (registrations will be cascaded and deleted)"""
         db = db_manager.get_session()
         try:
             event = db.query(Event).filter(Event.id == event_id).first()
@@ -246,11 +246,7 @@ def create_app():
                 flash('Событие не найдено', 'error')
                 return redirect(url_for('events'))
             
-            # Check if event has registrations
-            if event.registrations:
-                flash('Нельзя удалить событие с участниками', 'error')
-                return redirect(url_for('events'))
-            
+            # Allow cascade delete of related registrations via ON DELETE CASCADE
             db.delete(event)
             db.commit()
             flash('Событие успешно удалено!', 'success')
@@ -375,6 +371,16 @@ def create_app():
                 flash('Челлендж не найден', 'error')
                 return redirect(url_for('challenges'))
             
+            # Pre-clean related challenge registrations to avoid FK NULL violations
+            try:
+                db.query(ChallengeRegistration).filter(
+                    ChallengeRegistration.challenge_id == challenge_id
+                ).delete(synchronize_session=False)
+                db.commit()
+            except Exception as e:
+                flash(f'Ошибка при удалении связанных регистрации челленджa: {str(e)}', 'error')
+                return redirect(url_for('challenges'))
+
             # Check if challenge has submissions
             if challenge.submissions:
                 flash('Нельзя удалить челлендж с отчетами', 'error')
