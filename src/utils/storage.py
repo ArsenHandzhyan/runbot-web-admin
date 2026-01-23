@@ -37,9 +37,23 @@ class StorageManager:
     def _load_config(self):
         """Load configuration from r2_config.py if environment variables are not set"""
         try:
-            # Check if r2_config.py exists and load it
-            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'r2_config.py')
-            if os.path.exists(config_path):
+            # Try multiple possible locations for r2_config.py
+            possible_paths = [
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'r2_config.py'),  # /app/r2_config.py
+                '/opt/render/project/r2_config.py',  # Render project root
+                './r2_config.py',  # Current directory
+                os.path.join(os.getcwd(), 'r2_config.py'),  # CWD
+            ]
+
+            config_path = None
+            for path in possible_paths:
+                logger.info(f"Checking R2 config at: {path}")
+                if os.path.exists(path):
+                    config_path = path
+                    logger.info(f"Found R2 config at: {path}")
+                    break
+
+            if config_path:
                 import sys
                 config_dir = os.path.dirname(config_path)
                 if config_dir not in sys.path:
@@ -75,7 +89,11 @@ class StorageManager:
 
                 logger.info("Loaded configuration from r2_config.py")
             else:
-                logger.info("r2_config.py not found, using environment variables")
+                logger.warning("R2 config file not found in any location")
+                logger.info("Checked locations:")
+                for path in possible_paths:
+                    logger.info(f"  - {path}: {os.path.exists(path)}")
+                logger.info("Falling back to environment variables")
 
         except Exception as e:
             logger.warning(f"Error loading r2_config.py: {e}")
