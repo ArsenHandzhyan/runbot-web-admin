@@ -22,13 +22,23 @@ class DatabaseManager:
         if not self.database_url:
             raise ValueError("DATABASE_URL environment variable is required")
         
-        engine = create_engine(
-            self.database_url,
-            pool_pre_ping=True,
-            pool_recycle=300,
-            echo=False
-        )
-        self.engine = engine
+        # Configure engine based on database type
+        if self.database_url.startswith('postgresql'):
+            # PostgreSQL configuration
+            self.engine = create_engine(
+                self.database_url,
+                pool_pre_ping=True,
+                pool_recycle=300,
+                echo=False
+            )
+        else:
+            # SQLite configuration (for local testing)
+            self.engine = create_engine(
+                self.database_url,
+                future=True,
+                connect_args={"check_same_thread": False}
+            )
+        
         self.SessionLocal = sessionmaker(
             autocommit=False, 
             autoflush=False, 
@@ -78,7 +88,8 @@ class DatabaseManager:
         """Check database connectivity"""
         try:
             with self.engine.connect() as conn:
-                conn.execute("SELECT 1")
+                from sqlalchemy import text
+                conn.execute(text("SELECT 1"))
             return True
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
@@ -102,4 +113,3 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
- 
