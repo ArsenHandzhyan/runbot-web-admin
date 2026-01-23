@@ -12,6 +12,7 @@ import logging
 
 from src.models.models import Participant, Challenge, Submission, ChallengeType, SubmissionStatus, ChallengeRegistration, DistanceType
 from src.database.db import DatabaseManager
+from src.utils.storage import get_storage_manager
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,6 @@ class ChallengeManager:
         self.db_manager = db_manager
         self.active_submissions: Dict[int, dict] = {}  # chat_id -> submission_data
         self.temp_challenge_selection = {}  # Temporary storage for challenge selection during participation
-        self.media_storage_path = os.getenv('MEDIA_PATH', './media')
     
     def register_for_challenge(self, chat_id: int, challenge_id: int):
         """Register participant for a challenge with simple confirmation"""
@@ -587,38 +587,50 @@ class ChallengeManager:
         return units.get(challenge_type, "единиц")
     
     def _save_media(self, message) -> Optional[str]:
-        """Save uploaded media file"""
+        """Save uploaded media file using StorageManager"""
         try:
             import uuid
             from pathlib import Path
-            
-            # Create media directory if not exists
-            Path(self.media_storage_path).mkdir(parents=True, exist_ok=True)
-            
+            from io import BytesIO
+
             # Handle different media types
             if message.photo:
                 file_info = self.bot.get_file(message.photo[-1].file_id)
                 file_extension = ".jpg"
+                content_type = "image/jpeg"
             elif message.video:
                 file_info = self.bot.get_file(message.video.file_id)
                 file_extension = ".mp4"
+                content_type = "video/mp4"
             elif message.document:
                 file_info = self.bot.get_file(message.document.file_id)
                 file_extension = Path(message.document.file_name).suffix or ".dat"
+                content_type = message.document.mime_type or "application/octet-stream"
             else:
                 return None
-            
+
             # Generate unique filename
             filename = f"{uuid.uuid4()}{file_extension}"
-            filepath = os.path.join(self.media_storage_path, filename)
-            
+
             # Download file
             downloaded_file = self.bot.download_file(file_info.file_path)
-            with open(filepath, 'wb') as f:
-                f.write(downloaded_file)
-            
-            return filepath
-            
+
+            # Create a simple file-like object with required attributes
+            class FileLikeObject(BytesIO):
+                def __init__(self, data, filename, content_type):
+                    super().__init__(data)
+                    self.filename = filename
+                    self.content_type = content_type
+
+            file_obj = FileLikeObject(downloaded_file, filename, content_type)
+
+            # Upload using StorageManager
+            storage = get_storage_manager()
+            result = storage.upload_file(file_obj, filename)
+
+            logger.info(f"File uploaded to storage: {result['path']} ({result['size_mb']:.2f}MB)")
+            return result['path']
+
         except Exception as e:
             logger.error(f"Error saving media: {e}")
             return None
