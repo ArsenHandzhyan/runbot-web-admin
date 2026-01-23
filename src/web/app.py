@@ -25,12 +25,16 @@ logger = logging.getLogger(__name__)
 def create_app():
     # Get the project root directory
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
-    app = Flask(__name__, 
+
+    app = Flask(__name__,
                 template_folder=os.path.join(project_root, 'templates'),
                 static_folder=os.path.join(project_root, 'static'))
     app.secret_key = os.getenv('WEB_SECRET_KEY', 'your-secret-key-change-in-production')
-    
+
+    # Debug: Print database URL
+    db_url = os.getenv('DATABASE_URL', 'NOT_SET')
+    print(f"🔍 DEBUG: Using DATABASE_URL: {db_url[:50]}...")
+
     # Initialize managers
     db_manager = DatabaseManager()
     # NOTE: Web interface doesn't need bot instance - only database access
@@ -631,6 +635,50 @@ def create_app():
         try:
             admins = db.query(Admin).all()
             return render_template('admins.html', admins=admins)
+        finally:
+            db.close()
+
+    @app.route('/debug-env')
+    def debug_env():
+        """Debug environment variables"""
+        return f"""
+        <h1>Environment Debug</h1>
+        <p>DATABASE_URL: {os.getenv('DATABASE_URL', 'NOT_SET')}</p>
+        <p>PORT: {os.getenv('PORT', 'NOT_SET')}</p>
+        <p>FLASK_DEBUG: {os.getenv('FLASK_DEBUG', 'NOT_SET')}</p>
+        <p>Current working dir: {os.getcwd()}</p>
+        """
+
+    @app.route('/debug-db')
+    @login_required
+    def debug_db():
+        """Debug database connection and show current data"""
+        print(f"🔍 DEBUG-DB: DATABASE_URL = {os.getenv('DATABASE_URL', 'NOT_SET')[:50]}...")
+
+        db = db_manager.get_session()
+        try:
+            participants_count = db.query(Participant).count()
+            challenges_count = db.query(Challenge).count()
+            submissions_count = db.query(Submission).count()
+
+            submissions = db.query(Submission).all()
+
+            print(f"🔍 DEBUG-DB: Found {len(submissions)} submissions in DB")
+
+            return f"""
+            <h1>Database Debug</h1>
+            <p>DATABASE_URL: {os.getenv('DATABASE_URL', 'NOT_SET')[:50]}...</p>
+            <p>Participants: {participants_count}</p>
+            <p>Challenges: {challenges_count}</p>
+            <p>Submissions: {submissions_count}</p>
+            <h2>All Submissions:</h2>
+            <ul>
+            {"".join(f"<li>ID {s.id}: {s.result_value} {s.result_unit} - {s.media_path}</li>" for s in submissions)}
+            </ul>
+            """
+        except Exception as e:
+            print(f"❌ DEBUG-DB Error: {e}")
+            return f"<h1>Error</h1><p>{e}</p>"
         finally:
             db.close()
 
