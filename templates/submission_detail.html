@@ -181,9 +181,10 @@
                                      });
                              </script>
                          {% else %}
-                             <!-- Local file handling -->
-                             {% set media_url = url_for('serve_media', filename=submission.media_path) %}
-                             {% set file_extension = submission.media_path.split('.')[-1] if submission.media_path else '' %}
+                              <!-- Local file handling -->
+                              {% set filename_only = submission.media_path.split('/')[-1] if submission.media_path else '' %}
+                              {% set media_url = url_for('serve_media', filename=filename_only) %}
+                              {% set file_extension = filename_only.split('.')[-1] if filename_only else '' %}
 
                              {% if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
                                  <!-- Image files -->
@@ -236,8 +237,9 @@
                              {% endif %}
                          {% endif %}
                      {% else %}
-                             {% set media_url = url_for('serve_media', filename=submission.media_path) %}
-                             {% set file_extension = submission.media_path.split('.')[-1] if submission.media_path else '' %}
+                              {% set filename_only = submission.media_path.split('/')[-1] if submission.media_path else '' %}
+                              {% set media_url = url_for('serve_media', filename=filename_only) %}
+                              {% set file_extension = filename_only.split('.')[-1] if filename_only else '' %}
 
                              {% if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
                          <!-- Image files -->
