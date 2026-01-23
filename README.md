@@ -34,7 +34,7 @@ ADMIN_PASSWORD=ваш_пароль
 WEB_SECRET_KEY=ваш_секретный_ключ
 
 # Опциональные переменные
-DATABASE_URL=sqlite:///./runbot.db
+DATABASE_URL=postgresql://your-postgres-connection-string
 MEDIA_PATH=./media
 FLASK_DEBUG=False
 ```
