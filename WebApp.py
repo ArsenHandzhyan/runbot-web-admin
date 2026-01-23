@@ -12,7 +12,11 @@ load_dotenv()
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
-from src.web.app import create_app
+try:
+    # Prefer the newer WebApp module if it exists; fall back to legacy path for compatibility
+    from src.web.WebApp import create_app  # type: ignore
+except Exception:
+    from src.web.app import create_app  # type: ignore
 
 if __name__ == "__main__":
     app = create_app()
