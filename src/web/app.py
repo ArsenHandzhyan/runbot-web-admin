@@ -4,8 +4,9 @@ Simple Flask-based admin panel for managing events, challenges and participants
 """
 
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
 from functools import wraps
+from src.web.test_media import test_media_blueprint
 import logging
 from datetime import datetime
 
@@ -91,8 +92,15 @@ def create_app():
     @app.route('/media/<path:filename>')
     def serve_media(filename):
         """Serve media files from media directory"""
-        media_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'media')
-        return send_from_directory(media_path, filename)
+        # Compute project root reliably and serve media from there
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        media_path = os.path.join(repo_root, 'media')
+        logger.info("serve_media: filename=%s, media_path=%s, exists=%s", filename, media_path, os.path.exists(os.path.join(media_path, filename)))
+        try:
+            return send_from_directory(media_path, filename)
+        except Exception as e:
+            logger.exception("serve_media error: %s", e)
+            raise
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():

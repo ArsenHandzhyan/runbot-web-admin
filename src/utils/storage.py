@@ -43,12 +43,26 @@ class StorageManager:
             self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET')
             self.base_url = f"https://{self.bucket}.r2.cloudflarestorage.com"
         else:
-            # Render Disk
-            self.media_path = os.getenv('MEDIA_PATH', './media')
-            os.makedirs(self.media_path, exist_ok=True)
+            # Render Disk или локальная разработка
+            # Приоритет: ABSOLUTE_MEDIA_PATH > MEDIA_PATH > ./media
+            # Flask ищет media на два уровня выше app.py (project root)
+            media_path_from_env = os.getenv('MEDIA_PATH', './media')
+            # Используем абсолютный путь к директории app.py, затем один уровень выше (project root)
+            project_root = os.path.dirname(os.path.abspath(__file__))
+            absolute_media_path = os.path.join(project_root, 'media')
+            
+            if os.getenv('ABSOLUTE_MEDIA_PATH'):
+                self.media_path = os.getenv('ABSOLUTE_MEDIA_PATH')
+                logger.info(f"Используется ABSOLUTE_MEDIA_PATH: {self.media_path}")
+            else:
+                # Для локальной разработки используем абсолютный путь в project_root/media
+                # При деплое на Render, MEDIA_PATH можно задать как /opt/render/project/data/media
+                self.media_path = absolute_media_path
+                logger.info(f"Используется путь: {self.media_path}")
+            
             self.base_url = '/media'
         
-        logger.info(f"StorageManager инициализирован: {self.storage_type}")
+        logger.info(f"StorageManager инициализирован: {self.storage_type}, media_path: {self.media_path}")
     
     def _detect_file_type(self, filename):
         """Определить тип файла"""
