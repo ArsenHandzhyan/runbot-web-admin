@@ -62,10 +62,16 @@ class StorageManager:
                     'MAX_TOTAL_FILES': str(getattr(r2_config, 'MAX_TOTAL_FILES', 1000)),
                 }
 
+                logger.info(f"Loaded config STORAGE_TYPE: {env_vars['STORAGE_TYPE']}...")
+                logger.info(f"R2_ACCESS_KEY_ID loaded: {'Yes' if env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID'] else 'No'}")
+                logger.info(f"R2_SECRET_ACCESS_KEY loaded: {'Yes' if env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY'] else 'No'}")
+                logger.info(f"R2_ACCOUNT_ID loaded: {'Yes' if env_vars['CLOUDFLARE_R2_ACCOUNT_ID'] else 'No'}")
+
                 # Only set if not already set
                 for key, value in env_vars.items():
                     if not os.getenv(key) and value:
                         os.environ[key] = value
+                        logger.info(f"Set env var {key} from config")
 
                 logger.info("Loaded configuration from r2_config.py")
             else:
@@ -76,16 +82,26 @@ class StorageManager:
             logger.info("Falling back to environment variables")
         
         if self.storage_type == 'r2' and BOTO3_AVAILABLE:
-            # Настройка R2
-            endpoint_url = f"https://{os.getenv('CLOUDFLARE_R2_ACCOUNT_ID')}.r2.cloudflarestorage.com"
-            self.s3_client = boto3.client(
-                's3',
-                endpoint_url=endpoint_url,
-                aws_access_key_id=os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
-            )
-            self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET')
-            self.base_url = f"https://{self.bucket}.r2.cloudflarestorage.com"
+            # Check if R2 credentials are available
+            access_key = os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID')
+            secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY')
+            account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID')
+
+            if not all([access_key, secret_key, account_id]):
+                logger.error("R2 credentials not found in config file or environment variables")
+                # Fall back to render_disk
+                self.storage_type = 'render_disk'
+            else:
+                # Настройка R2
+                endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
+                self.s3_client = boto3.client(
+                    's3',
+                    endpoint_url=endpoint_url,
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                )
+                self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET')
+                self.base_url = f"https://{self.bucket}.r2.cloudflarestorage.com"
         else:
             # Render Disk или локальная разработка
             # Приоритет: ABSOLUTE_MEDIA_PATH > MEDIA_PATH > ./media
@@ -273,6 +289,13 @@ class StorageManager:
                 logger.error(f"Ошибка очистки диска: {e}")
                 return 0
     
+    def upload_file_from_path(self, file_path: str):
+        """Legacy method - files should already be uploaded via upload_file()"""
+        logger.warning(f"upload_file_from_path called with {file_path} - this method is deprecated")
+        logger.warning("Files should be uploaded directly using upload_file() method")
+        # This is a no-op - file should already be in correct location
+        return file_path
+
     def get_storage_stats(self):
         """Получить статистику хранилища"""
         if self.storage_type == 'r2' and BOTO3_AVAILABLE:
