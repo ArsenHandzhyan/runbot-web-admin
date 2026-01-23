@@ -98,10 +98,16 @@ def create_app():
     @app.route('/media/<path:filename>')
     def serve_media(filename):
         """Serve media files from media directory or redirect to R2"""
+        logger.info("serve_media: received filename=%s", filename)
+        logger.info("serve_media: starts with https://? %s", filename.startswith('https://'))
+        logger.info("serve_media: length of filename: %d", len(filename))
+
         # Check if filename is an R2 URL (starts with https://)
         if filename.startswith('https://'):
-            logger.info("serve_media: redirecting to R2 URL: %s", filename)
+            logger.info("serve_media: REDIRECTING to R2 URL: %s", filename)
             return redirect(filename)
+        else:
+            logger.info("serve_media: SERVING LOCALLY - filename does not start with https://")
 
         # Compute project root reliably and serve media from there
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -656,36 +662,35 @@ def create_app():
         <p>Current working dir: {os.getcwd()}</p>
         """
 
-    @app.route('/debug-db')
+    @app.route('/debug-media/<int:submission_id>')
     @login_required
-    def debug_db():
-        """Debug database connection and show current data"""
-        print(f"🔍 DEBUG-DB: DATABASE_URL = {os.getenv('DATABASE_URL', 'NOT_SET')[:50]}...")
-
+    def debug_media(submission_id):
+        """Debug media for a specific submission"""
         db = db_manager.get_session()
         try:
-            participants_count = db.query(Participant).count()
-            challenges_count = db.query(Challenge).count()
-            submissions_count = db.query(Submission).count()
+            submission = db.query(Submission).get(submission_id)
+            if not submission:
+                return f"<h1>Submission {submission_id} not found</h1>"
 
-            submissions = db.query(Submission).all()
+            media_path = submission.media_path
+            is_r2_url = media_path.startswith('https://') if media_path else False
 
-            print(f"🔍 DEBUG-DB: Found {len(submissions)} submissions in DB")
+            html = f"""
+            <h1>Media Debug for Submission {submission_id}</h1>
+            <p>Media Path: {media_path}</p>
+            <p>Is R2 URL: {is_r2_url}</p>
+            <p>File Extension: {media_path.split('.')[-1] if media_path and '.' in media_path else 'unknown'}</p>
 
-            return f"""
-            <h1>Database Debug</h1>
-            <p>DATABASE_URL: {os.getenv('DATABASE_URL', 'NOT_SET')[:50]}...</p>
-            <p>Participants: {participants_count}</p>
-            <p>Challenges: {challenges_count}</p>
-            <p>Submissions: {submissions_count}</p>
-            <h2>All Submissions:</h2>
-            <ul>
-            {"".join(f"<li>ID {s.id}: {s.result_value} {s.result_unit} - {s.media_path}</li>" for s in submissions)}
-            </ul>
+            <h2>Test Direct Access:</h2>
             """
-        except Exception as e:
-            print(f"❌ DEBUG-DB Error: {e}")
-            return f"<h1>Error</h1><p>{e}</p>"
+
+            if media_path and media_path.startswith('https://'):
+                html += f'<p><a href="{media_path}" target="_blank">Direct R2 Link</a></p>'
+                html += f'<img src="{media_path}" style="max-width: 300px;" onerror="this.style.display=\'none\'">'
+            else:
+                html += f'<p>Local file: {media_path}</p>'
+
+            return html
         finally:
             db.close()
 
