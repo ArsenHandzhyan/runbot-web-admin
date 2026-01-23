@@ -6,8 +6,9 @@ Simple Flask-based admin panel for managing events, challenges and participants
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
 from functools import wraps
-from src.web.test_media import test_media_blueprint
 import logging
+
+# Removed problematic import: from src.web.test_media import test_media_blueprint
 from datetime import datetime
 
 from src.database.db import DatabaseManager
