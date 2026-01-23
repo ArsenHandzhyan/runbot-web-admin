@@ -97,11 +97,18 @@ def create_app():
     
     @app.route('/media/<path:filename>')
     def serve_media(filename):
-        """Serve media files from media directory"""
+        """Serve media files from media directory or redirect to R2"""
+        # Check if filename is an R2 URL (starts with https://)
+        if filename.startswith('https://'):
+            logger.info("serve_media: redirecting to R2 URL: %s", filename)
+            return redirect(filename)
+
         # Compute project root reliably and serve media from there
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         media_path = os.path.join(repo_root, 'media')
-        logger.info("serve_media: filename=%s, media_path=%s, exists=%s", filename, media_path, os.path.exists(os.path.join(media_path, filename)))
+        file_path = os.path.join(media_path, filename)
+        logger.info("serve_media: filename=%s, media_path=%s, exists=%s", filename, media_path, os.path.exists(file_path))
+
         try:
             return send_from_directory(media_path, filename)
         except Exception as e:
