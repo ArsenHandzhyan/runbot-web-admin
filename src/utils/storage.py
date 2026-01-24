@@ -229,6 +229,53 @@ class StorageManager:
 
         return None
 
+    def download_file(self, file_path):
+        """Скачать файл из хранилища (возвращает bytes)"""
+        logger.info(f"download_file called: file_path={file_path}, storage_type={self.storage_type}")
+
+        if not file_path:
+            logger.warning("download_file: file_path is empty")
+            return None
+
+        # If it's an R2 path (starts with r2://), download from R2
+        if file_path.startswith('r2://'):
+            logger.info(f"download_file: detected R2 path: {file_path}")
+            if self.storage_type == 'r2' and BOTO3_AVAILABLE:
+                # Extract bucket and key from r2://bucket/key
+                parts = file_path.replace('r2://', '').split('/', 1)
+                logger.info(f"download_file: extracted parts: {parts}")
+                if len(parts) == 2:
+                    bucket, key = parts
+                    logger.info(f"download_file: bucket={bucket}, key={key}")
+                    try:
+                        # Download file from R2
+                        response = self.s3_client.get_object(Bucket=bucket, Key=key)
+                        file_data = response['Body'].read()
+                        logger.info(f"✅ Downloaded file from R2: {key}, size={len(file_data)} bytes")
+                        return file_data
+                    except Exception as e:
+                        logger.error(f"❌ Failed to download file from R2 {file_path}: {e}", exc_info=True)
+                        return None
+                else:
+                    logger.error(f"download_file: invalid R2 path format, expected 2 parts but got {len(parts)}")
+            else:
+                logger.warning(f"download_file: R2 storage not available (storage_type={self.storage_type}, boto3={BOTO3_AVAILABLE})")
+            return None
+
+        # For local files, read from disk
+        elif os.path.exists(file_path):
+            try:
+                with open(file_path, 'rb') as f:
+                    file_data = f.read()
+                logger.info(f"✅ Read local file: {file_path}, size={len(file_data)} bytes")
+                return file_data
+            except Exception as e:
+                logger.error(f"❌ Failed to read local file {file_path}: {e}")
+                return None
+
+        logger.warning(f"download_file: file not found: {file_path}")
+        return None
+
     def delete_file(self, filepath):
         """Удалить файл"""
         if filepath and filepath.startswith('r2://'):
