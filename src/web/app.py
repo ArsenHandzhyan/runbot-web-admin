@@ -238,7 +238,7 @@ def create_app():
     @app.route('/events/<int:event_id>/delete', methods=['POST'])
     @login_required
     def delete_event(event_id):
-        """Delete event"""
+        """Delete event (registrations will be cascaded and deleted)"""
         db = db_manager.get_session()
         try:
             event = db.query(Event).filter(Event.id == event_id).first()
@@ -246,11 +246,7 @@ def create_app():
                 flash('Событие не найдено', 'error')
                 return redirect(url_for('events'))
             
-            # Check if event has registrations
-            if event.registrations:
-                flash('Нельзя удалить событие с участниками', 'error')
-                return redirect(url_for('events'))
-            
+            # Allow cascade delete of related registrations via ON DELETE CASCADE
             db.delete(event)
             db.commit()
             flash('Событие успешно удалено!', 'success')
@@ -375,6 +371,16 @@ def create_app():
                 flash('Челлендж не найден', 'error')
                 return redirect(url_for('challenges'))
             
+            # Pre-clean related challenge registrations to avoid FK NULL violations
+            try:
+                db.query(ChallengeRegistration).filter(
+                    ChallengeRegistration.challenge_id == challenge_id
+                ).delete(synchronize_session=False)
+                db.commit()
+            except Exception as e:
+                flash(f'Ошибка при удалении связанных регистрации челленджa: {str(e)}', 'error')
+                return redirect(url_for('challenges'))
+
             # Check if challenge has submissions
             if challenge.submissions:
                 flash('Нельзя удалить челлендж с отчетами', 'error')
@@ -668,14 +674,22 @@ def create_app():
         <p>Current working dir: {os.getcwd()}</p>
         """
 
-    @app.route('/get-file-url/<path:file_path>')
+    @app.route('/get-file-url')
     @login_required
-    def get_file_url(file_path):
+    def get_file_url():
         """Generate signed URL for R2 files"""
         try:
-            from src.utils.storage import StorageManager
-            storage = StorageManager()
+            from flask import request
+            from src.utils.storage import get_storage_manager
+
+            file_path = request.args.get('path')
+            if not file_path:
+                return {'error': 'No file path provided'}, 400
+
+            storage = get_storage_manager()
+            logger.info(f"get_file_url: file_path={file_path}, storage_type={storage.storage_type}")
             url = storage.get_file_url(file_path)
+            logger.info(f"get_file_url: generated url={url}")
             if url:
                 return {'url': url}, 200
             else:

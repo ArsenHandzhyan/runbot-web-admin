@@ -82,7 +82,7 @@ class Submission(Base):
     
     id = Column(Integer, primary_key=True)
     participant_id = Column(Integer, ForeignKey('participants.id'), nullable=False)
-    challenge_id = Column(Integer, ForeignKey('challenges.id'), nullable=False)
+    challenge_id = Column(Integer, ForeignKey('challenges.id', ondelete='CASCADE'), nullable=False)
     submission_date = Column(DateTime, default=datetime.utcnow)
     media_path = Column(String)  # Path to uploaded media
     result_value = Column(Float)  # Numeric result (reps, seconds, km, etc.)
@@ -163,7 +163,9 @@ class Event(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    registrations = relationship("EventRegistration", back_populates="event")
+    registrations = relationship(
+        "EventRegistration", back_populates="event", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 class EventRegistration(Base):
     """Event registration model - tracks participant registrations for events"""
@@ -171,7 +173,7 @@ class EventRegistration(Base):
     
     id = Column(Integer, primary_key=True)
     participant_id = Column(Integer, ForeignKey('participants.id'), nullable=False)
-    event_id = Column(Integer, ForeignKey('events.id'), nullable=False)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     registration_date = Column(DateTime, default=datetime.utcnow)
     registration_status = Column(Enum(SubmissionStatus), default=SubmissionStatus.APPROVED)
     bib_number = Column(String)  # Unique number for this event
@@ -219,5 +221,9 @@ class ChallengeRegistration(Base):
     challenge = relationship("Challenge", back_populates="registrations")
 
 # Добавим relationship в существующие модели
-Participant.challenge_registrations = relationship("ChallengeRegistration", back_populates="participant")
-Challenge.registrations = relationship("ChallengeRegistration", back_populates="challenge")
+Participant.challenge_registrations = relationship(
+    "ChallengeRegistration", back_populates="participant", cascade="all, delete-orphan", passive_deletes=True
+)
+Challenge.registrations = relationship(
+    "ChallengeRegistration", back_populates="challenge", cascade="all, delete-orphan", passive_deletes=True
+)

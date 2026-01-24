@@ -3,6 +3,7 @@ Database connection and session management
 """
 
 from sqlalchemy import create_engine
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 import logging
@@ -55,6 +56,8 @@ class DatabaseManager:
         try:
             Base.metadata.create_all(bind=self.engine)
             logger.info("Database tables created successfully")
+            # Optionally run startup migrations if configured
+            self.run_startup_migrations()
         except SQLAlchemyError as e:
             logger.error(f"Failed to create database tables: {e}")
             raise
@@ -94,6 +97,46 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
             return False
+
+    def _apply_sql_script(self, script_path: str) -> None:
+        """Apply a SQL migration script that may contain multiple statements."""
+        import os
+        if not os.path.exists(script_path):
+            logger.warning(f"Migration script not found: {script_path}")
+            return
+        with open(script_path, 'r') as f:
+            content = f.read()
+        # Split by semicolon; ignore empty statements
+        statements = [s.strip() for s in content.split(';') if s.strip()]
+        if not statements:
+            return
+        with self.engine.connect() as conn:
+            trans = conn.begin()
+            try:
+                for stmt in statements:
+                    conn.execute(text(stmt))
+                trans.commit()
+            except Exception as e:
+                trans.rollback()
+                logger.error(f"Migration script failed: {script_path} -> {e}")
+                raise
+
+    def run_startup_migrations(self) -> None:
+        """Run startup migrations automatically if enabled via env var."""
+        run = os.getenv('AUTO_MIGRATE_ON_START', 'false').lower()
+        if run not in ('1', 'true', 'yes'):
+            return
+        logger.info("Running startup migrations (AUTO_MIGRATE_ON_START is enabled)")
+        import os
+        script_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+        challenge_script = os.path.join(script_dir, 'migrate_cascade_challenge_registrations.sql')
+        event_script = os.path.join(script_dir, 'migrate_cascade_event_registrations.sql')
+        try:
+            self._apply_sql_script(challenge_script)
+            self._apply_sql_script(event_script)
+            logger.info("Startup migrations completed successfully")
+        except Exception as e:
+            logger.error(f"Startup migrations failed: {e}")
 
 # Global database manager instance
 db_manager = None

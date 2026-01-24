@@ -127,9 +127,19 @@
                              </div>
                              <script>
                                  // Load signed URL for R2 file
-                                 fetch('/get-file-url/{{ submission.media_path | urlencode }}')
-                                     .then(response => response.json())
+                                 const filePath = '{{ submission.media_path }}';
+                                 const encodedPath = encodeURIComponent(filePath);
+
+                                 console.log('Loading file:', filePath);
+                                 console.log('Encoded path:', encodedPath);
+
+                                 fetch(`/get-file-url?path=${encodedPath}`)
+                                     .then(response => {
+                                         console.log('Response status:', response.status);
+                                         return response.json();
+                                     })
                                      .then(data => {
+                                         console.log('Response data:', data);
                                          if (data.url) {
                                              const container = document.getElementById('media-container-{{ submission.id }}');
                                              const extension = '{{ submission.media_path.split(".")[-1] }}';
@@ -170,14 +180,23 @@
                                                  `;
                                              }
                                          } else {
+                                             const errorMsg = data.error || 'Неизвестная ошибка';
                                              document.getElementById('media-container-{{ submission.id }}').innerHTML =
-                                                 '<div class="alert alert-danger">Ошибка загрузки файла</div>';
+                                                 `<div class="alert alert-danger">
+                                                     <h6>Ошибка загрузки файла</h6>
+                                                     <p class="mb-0">${errorMsg}</p>
+                                                     <small class="text-muted">Файл: ${filePath}</small>
+                                                 </div>`;
                                          }
                                      })
                                      .catch(error => {
                                          console.error('Error loading file:', error);
                                          document.getElementById('media-container-{{ submission.id }}').innerHTML =
-                                             '<div class="alert alert-danger">Ошибка загрузки файла</div>';
+                                             `<div class="alert alert-danger">
+                                                 <h6>Ошибка загрузки файла</h6>
+                                                 <p class="mb-0">${error.message}</p>
+                                                 <small class="text-muted">Файл: ${filePath}</small>
+                                             </div>`;
                                      });
                              </script>
                          {% else %}

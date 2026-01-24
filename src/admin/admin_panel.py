@@ -30,6 +30,50 @@ class AdminPanel:
         self.remove_user_from_admin_panel = remove_user_from_admin_panel_func
         self.active_admin_sessions = {}  # For multi-step admin operations
 
+    def _send_media_file(self, chat_id: int, submission):
+        """Helper to send media file from submission to Telegram"""
+        if not submission.media_path:
+            logger.info(f"No media file for submission {submission.id}")
+            return False
+
+        try:
+            from src.utils.storage import get_storage_manager
+            import mimetypes
+
+            storage = get_storage_manager()
+            file_data = storage.download_file(submission.media_path)
+
+            if not file_data:
+                logger.error(f"Failed to download media file: {submission.media_path}")
+                safe_send_message(self.bot, chat_id, "⚠️ Не удалось загрузить медиа файл")
+                return False
+
+            # Determine file type from extension
+            filename = submission.media_path.split('/')[-1]
+            file_extension = filename.split('.')[-1].lower() if '.' in filename else ''
+
+            # Create BytesIO object for Telegram
+            file_io = io.BytesIO(file_data)
+            file_io.name = filename
+
+            logger.info(f"Sending media file: {filename}, type: {file_extension}, size: {len(file_data)} bytes")
+
+            # Send based on file type
+            if file_extension in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                self.bot.send_photo(chat_id, file_io)
+            elif file_extension in ['mp4', 'avi', 'mov', 'webm']:
+                self.bot.send_video(chat_id, file_io)
+            else:
+                self.bot.send_document(chat_id, file_io)
+
+            logger.info(f"✅ Media file sent successfully: {filename}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error sending media file: {e}", exc_info=True)
+            safe_send_message(self.bot, chat_id, "⚠️ Ошибка при отправке медиа файла")
+            return False
+
     def _create_admin_keyboard(self):
         """Create persistent admin navigation keyboard"""
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
@@ -1228,48 +1272,70 @@ class AdminPanel:
                 Participant, Submission.participant_id == Participant.id
             ).join(
                 Challenge, Submission.challenge_id == Challenge.id
-            ).order_by(Submission.submission_date.desc()).limit(20).all()
-            
+            ).order_by(Submission.submission_date.desc()).limit(10).all()
+
             if not submissions:
                 safe_send_message(self.bot, chat_id, "Нет отчетов для отображения")
                 return
-            
-            message = "*📊 Все отчеты*\n\n"
-            
+
+            # Send each submission as a separate message with media
             for submission, participant, challenge in submissions:
+                # Send media file if exists
+                if submission.media_path:
+                    self._send_media_file(chat_id, submission)
+
                 status_icon = {
                     SubmissionStatus.PENDING: "⏳",
                     SubmissionStatus.APPROVED: "✅",
                     SubmissionStatus.REJECTED: "❌"
                 }.get(submission.status, "❓")
-                
+
                 status_text = {
                     SubmissionStatus.PENDING: "На проверке",
                     SubmissionStatus.APPROVED: "Одобрено",
                     SubmissionStatus.REJECTED: "Отклонено"
                 }.get(submission.status, "Неизвестно")
-                
-                message += (
-                    f"{status_icon} *{participant.full_name}* (#{participant.start_number})\n"
-                    f"   Челлендж: {challenge.name}\n"
-                    f"   Результат: {submission.result_value} {submission.result_unit}\n"
-                    f"   Статус: {status_text}\n"
-                    f"   Дата: {submission.submission_date.strftime('%d.%m.%Y %H:%M')}\n"
+
+                message = (
+                    f"*📊 Отчет #{submission.id}*\n\n"
+                    f"{status_icon} Статус: *{status_text}*\n"
+                    f"👤 Участник: {participant.full_name} (#{participant.start_number})\n"
+                    f"🏆 Челлендж: {challenge.name}\n"
+                    f"📊 Результат: {submission.result_value} {submission.result_unit}\n"
+                    f"📅 Дата: {submission.submission_date.strftime('%d.%m.%Y %H:%M')}\n"
                 )
-                
+
                 if submission.comment:
-                    message += f"   Комментарий: {submission.comment}\n"
-                
-                message += "\n"
-            
+                    message += f"💬 Комментарий: {submission.comment}\n"
+
+                if submission.media_path:
+                    message += f"📎 Медиа: {submission.media_path.split('/')[-1]}\n"
+
+                # Add moderation buttons if pending
+                if submission.status == SubmissionStatus.PENDING:
+                    markup = telebot.types.InlineKeyboardMarkup()
+                    markup.row(
+                        telebot.types.InlineKeyboardButton(
+                            "✅ Одобрить",
+                            callback_data=f"approve_{submission.id}"
+                        ),
+                        telebot.types.InlineKeyboardButton(
+                            "❌ Отклонить",
+                            callback_data=f"reject_{submission.id}"
+                        )
+                    )
+                    safe_send_message(self.bot, chat_id, message, parse_mode='Markdown', reply_markup=markup)
+                else:
+                    safe_send_message(self.bot, chat_id, message, parse_mode='Markdown')
+
             # Add navigation buttons
             markup = telebot.types.InlineKeyboardMarkup()
             markup.row(
                 telebot.types.InlineKeyboardButton("⏳ На проверке", callback_data="moderate_pending"),
                 telebot.types.InlineKeyboardButton("🔙 Назад", callback_data="admin_main")
             )
-            
-            safe_send_message(self.bot, chat_id, message, parse_mode='Markdown', reply_markup=markup)
+
+            safe_send_message(self.bot, chat_id, "Выберите действие:", reply_markup=markup)
             
         except Exception as e:
             logger.error(f"Error showing all submissions: {e}")
@@ -1292,7 +1358,11 @@ class AdminPanel:
             for submission in pending_submissions:
                 participant = db.query(Participant).get(submission.participant_id)
                 challenge = db.query(Challenge).get(submission.challenge_id)
-                
+
+                # Send media file if exists
+                if submission.media_path:
+                    self._send_media_file(chat_id, submission)
+
                 # Create moderation message
                 message_text = (
                     f"*🔍 Отчет на проверку*\n\n"
@@ -1301,23 +1371,26 @@ class AdminPanel:
                     f"📊 Результат: {submission.result_value} {submission.result_unit}\n"
                     f"📅 Дата: {submission.submission_date.strftime('%d.%m.%Y %H:%M')}\n"
                 )
-                
+
                 if submission.comment:
-                    message_text += f"💬 Комментарий: {submission.comment}\n\n"
-                
+                    message_text += f"💬 Комментарий: {submission.comment}\n"
+
+                if submission.media_path:
+                    message_text += f"📎 Медиа: {submission.media_path.split('/')[-1]}\n"
+
                 # Add moderation buttons
                 markup = telebot.types.InlineKeyboardMarkup()
                 markup.row(
                     telebot.types.InlineKeyboardButton(
-                        "✅ Одобрить", 
+                        "✅ Одобрить",
                         callback_data=f"approve_{submission.id}"
                     ),
                     telebot.types.InlineKeyboardButton(
-                        "❌ Отклонить", 
+                        "❌ Отклонить",
                         callback_data=f"reject_{submission.id}"
                     )
                 )
-                
+
                 safe_send_message(self.bot, chat_id, message_text, parse_mode='Markdown', reply_markup=markup)
             
         except Exception as e:
