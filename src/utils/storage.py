@@ -21,11 +21,10 @@ class StorageManager:
     """Управление файлами с поддержкой Cloudflare R2 и Render Disk"""
 
     def __init__(self):
-        # Try to load from r2_config.py if environment variables are not set
-        self._load_config()
-
-        self.storage_type = os.getenv('STORAGE_TYPE', 'render_disk')  # 'r2' или 'render_disk'
+        self.storage_type = os.getenv('STORAGE_TYPE', 'render_disk')
         self.max_size_mb = int(os.getenv('MAX_UPLOAD_SIZE_MB', '10'))
+
+        logger.info(f"StorageManager initializing: storage_type={self.storage_type}")
 
         # Ограничения по типам файлов
         self.max_sizes = {
@@ -34,337 +33,210 @@ class StorageManager:
             'document': int(os.getenv('MAX_DOCUMENT_SIZE_MB', '10'))
         }
 
-    def _load_config(self):
-        """Load configuration from r2_config.py if environment variables are not set"""
-        try:
-            # Try multiple possible locations for r2_config.py
-            possible_paths = [
-                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'r2_config.py'),  # /app/r2_config.py
-                '/opt/render/project/r2_config.py',  # Render project root
-                './r2_config.py',  # Current directory
-                os.path.join(os.getcwd(), 'r2_config.py'),  # CWD
-            ]
-
-            config_path = None
-            for path in possible_paths:
-                logger.info(f"Checking R2 config at: {path}")
-                if os.path.exists(path):
-                    config_path = path
-                    logger.info(f"Found R2 config at: {path}")
-                    break
-
-            if config_path:
-                import sys
-                config_dir = os.path.dirname(config_path)
-                if config_dir not in sys.path:
-                    sys.path.insert(0, config_dir)
-
-                import r2_config
-
-                # Set environment variables from config if not already set
-                env_vars = {
-                    'STORAGE_TYPE': getattr(r2_config, 'STORAGE_TYPE', 'render_disk'),
-                    'CLOUDFLARE_R2_ACCESS_KEY_ID': getattr(r2_config, 'R2_ACCESS_KEY_ID', ''),
-                    'CLOUDFLARE_R2_SECRET_ACCESS_KEY': getattr(r2_config, 'R2_SECRET_ACCESS_KEY', ''),
-                    'CLOUDFLARE_R2_ACCOUNT_ID': getattr(r2_config, 'R2_ACCOUNT_ID', ''),
-                    'CLOUDFLARE_R2_BUCKET': getattr(r2_config, 'R2_BUCKET_NAME', ''),
-                    'MAX_UPLOAD_SIZE_MB': str(getattr(r2_config, 'MAX_UPLOAD_SIZE_MB', 10)),
-                    'MAX_IMAGE_SIZE_MB': str(getattr(r2_config, 'MAX_IMAGE_SIZE_MB', 5)),
-                    'MAX_VIDEO_SIZE_MB': str(getattr(r2_config, 'MAX_VIDEO_SIZE_MB', 50)),
-                    'MAX_DOCUMENT_SIZE_MB': str(getattr(r2_config, 'MAX_DOCUMENT_SIZE_MB', 10)),
-                    'MAX_FILES_PER_USER': str(getattr(r2_config, 'MAX_FILES_PER_USER', 5)),
-                    'MAX_TOTAL_FILES': str(getattr(r2_config, 'MAX_TOTAL_FILES', 1000)),
-                }
-
-                logger.info(f"Loaded config STORAGE_TYPE: {env_vars['STORAGE_TYPE']}")
-                logger.info(f"R2_ACCESS_KEY_ID loaded: {len(env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID'])} chars")
-                logger.info(f"R2_SECRET_ACCESS_KEY loaded: {len(env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY'])} chars")
-                logger.info(f"R2_ACCOUNT_ID loaded: {len(env_vars['CLOUDFLARE_R2_ACCOUNT_ID'])} chars")
-                logger.info(f"R2_BUCKET: '{env_vars['CLOUDFLARE_R2_BUCKET']}'")
-
-                # Debug: show if values look like placeholders
-                if 'ВАШ_' in env_vars['CLOUDFLARE_R2_ACCESS_KEY_ID']:
-                    logger.error("R2_ACCESS_KEY_ID contains placeholder text - please fill with real credentials!")
-                if 'ВАШ_' in env_vars['CLOUDFLARE_R2_SECRET_ACCESS_KEY']:
-                    logger.error("R2_SECRET_ACCESS_KEY contains placeholder text - please fill with real credentials!")
-                if 'ВАШ_' in env_vars['CLOUDFLARE_R2_ACCOUNT_ID']:
-                    logger.error("R2_ACCOUNT_ID contains placeholder text - please fill with real credentials!")
-
-                # Only set if not already set
-                for key, value in env_vars.items():
-                    if not os.getenv(key) and value:
-                        os.environ[key] = value
-                        logger.info(f"Set env var {key} from config")
-
-                logger.info("Loaded configuration from r2_config.py")
-            else:
-                logger.warning("R2 config file not found in any location")
-                logger.info("Checked locations:")
-                for path in possible_paths:
-                    logger.info(f"  - {path}: {os.path.exists(path)}")
-                logger.info("Falling back to environment variables")
-
-        except Exception as e:
-            logger.warning(f"Error loading r2_config.py: {e}")
-            logger.info("Falling back to environment variables")
-        
         if self.storage_type == 'r2' and BOTO3_AVAILABLE:
-            # Check if R2 credentials are available
+            # Настройка R2
+            account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID')
             access_key = os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID')
             secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY')
-            account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID')
 
-            if not all([access_key, secret_key, account_id]):
-                logger.error("R2 credentials not found in config file or environment variables")
-                # Fall back to render_disk
-                self.storage_type = 'render_disk'
-            else:
-                # Настройка R2
+            logger.info(f"R2 credential check: account_id={'SET' if account_id else 'NOT SET'}, access_key={'SET' if access_key else 'NOT SET'}, secret_key={'SET' if secret_key else 'NOT SET'}")
+
+            if account_id and access_key and secret_key:
                 endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
                 self.s3_client = boto3.client(
                     's3',
                     endpoint_url=endpoint_url,
                     aws_access_key_id=access_key,
                     aws_secret_access_key=secret_key,
+                    region_name='auto'
                 )
-                self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET')
-                self.base_url = f"https://{self.bucket}.r2.cloudflarestorage.com"
-        else:
-            # Render Disk или локальная разработка
-            # Приоритет: ABSOLUTE_MEDIA_PATH > MEDIA_PATH > ./media
-            # Flask ищет media на два уровня выше app.py (project root)
-            media_path_from_env = os.getenv('MEDIA_PATH', './media')
-            # Используем абсолютный путь к директории app.py, затем один уровень выше (project root)
-            project_root = os.path.dirname(os.path.abspath(__file__))
-            absolute_media_path = os.path.join(project_root, 'media')
-            
-            if os.getenv('ABSOLUTE_MEDIA_PATH'):
-                self.media_path = os.getenv('ABSOLUTE_MEDIA_PATH')
-                logger.info(f"Используется ABSOLUTE_MEDIA_PATH: {self.media_path}")
+                self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET', 'runbot-media')
+                logger.info(f"✅ R2 storage initialized: bucket={self.bucket}, endpoint={endpoint_url}")
             else:
-                # Для локальной разработки используем абсолютный путь в project_root/media
-                # При деплое на Render, MEDIA_PATH можно задать как /opt/render/project/data/media
-                self.media_path = absolute_media_path
-                logger.info(f"Используется путь: {self.media_path}")
-            
+                logger.error(f"❌ R2 credentials not found in environment variables")
+                logger.error(f"   Missing: account_id={not account_id}, access_key={not access_key}, secret_key={not secret_key}")
+                self.storage_type = 'render_disk'
+        elif self.storage_type == 'r2' and not BOTO3_AVAILABLE:
+            logger.error("❌ R2 storage requested but boto3 is not available")
+            self.storage_type = 'render_disk'
+
+        # Для локального хранения
+        if self.storage_type != 'r2' or not BOTO3_AVAILABLE:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            self.media_path = os.path.join(project_root, 'media')
+            os.makedirs(self.media_path, exist_ok=True)
             self.base_url = '/media'
-        
-        logger.info(f"StorageManager инициализирован: {self.storage_type}, media_path: {self.media_path}")
-    
+            logger.info(f"✅ Local storage initialized: path={self.media_path}")
+
     def _detect_file_type(self, filename):
-        """Определить тип файла"""
-        ext = filename.split('.')[-1].lower() if '.' in filename else ''
-        
+        """Определить тип файла по расширению"""
+        ext = filename.lower().split('.')[-1]
         if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
             return 'image'
         elif ext in ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm']:
             return 'video'
-        elif ext in ['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx']:
+        elif ext in ['pdf', 'doc', 'docx', 'txt', 'xlsx', 'xls', 'csv']:
             return 'document'
-        else:
-            return 'other'
-    
+        return 'other'
+
+    def _get_content_type(self, filename):
+        """Получить MIME тип файла"""
+        ext = filename.lower().split('.')[-1]
+        content_types = {
+            'txt': 'text/plain',
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv': 'text/csv',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'mp4': 'video/mp4',
+            'avi': 'video/x-msvideo',
+            'mov': 'video/quicktime',
+            'wmv': 'video/x-ms-wmv',
+            'flv': 'video/x-flv',
+            'webm': 'video/webm'
+        }
+        return content_types.get(ext, 'application/octet-stream')
+
     def validate_file_size(self, file_size_mb, file_type):
         """Проверить размер файла"""
         max_size = self.max_sizes.get(file_type, self.max_size_mb)
-        
-        if file_size > max_size:
+
+        if file_size_mb > max_size:
             return False, f"Файл слишком большой. Максимум: {max_size}MB для {file_type}"
-        if file_size > self.max_size_mb:
-            return False, f"Файл слишком большой. Максимум: {self.max_size_mb}MB"
-        
+
         return True, ""
-    
-    def upload_file(self, file, filename=None):
-        """Загрузить файл"""
+
+    def upload_file_from_path(self, file_path, filename=None):
+        """Загрузить файл из локального пути в R2 или локальное хранилище"""
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        # Определить имя файла
         if filename is None:
-            filename = secure_filename(file.filename)
-        
+            filename = os.path.basename(file_path)
+
+        # Безопасное имя файла
+        filename = secure_filename(filename)
+
         # Проверить размер файла
-        file.seek(0, os.SEEK_END)
-        file_size_mb = file.tell() / (1024 * 1024)  # MB
-        file.seek(0)
-        
+        file_size = os.path.getsize(file_path)
+        file_size_mb = file_size / (1024 * 1024)  # MB
+
         # Определить тип файла
         file_type = self._detect_file_type(filename)
-        
+
         # Валидация размера
         valid, error_msg = self.validate_file_size(file_size_mb, file_type)
         if not valid:
             logger.error(f"Ошибка валидации файла {filename}: {error_msg}")
             raise ValueError(error_msg)
-        
-        # Проверить общие лимиты
-        total_files = os.getenv('MAX_TOTAL_FILES', '1000')
-        max_files = os.getenv('MAX_FILES_PER_USER', '5')
-        
-        if file_size_mb > self.max_size_mb:
-            raise ValueError(f'Файл слишком большой. Максимум: {self.max_size_mb}MB')
-        
+
         if self.storage_type == 'r2' and BOTO3_AVAILABLE:
             # Загрузка в R2
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{timestamp}_{filename}"
-            
-            self.s3_client.upload_fileobj(
-                file,
-                self.bucket,
-                filename,
-                ExtraArgs={'ContentType': file.content_type}
-            )
-            
-            logger.info(f"Файл загружен в R2: {filename} ({file_size_mb:.2f}MB)")
-            return {
-                'path': f"r2://{self.bucket}/{filename}",
-                'url': f"{self.base_url}/{filename}",
-                'size_mb': file_size_mb,
-                'storage_type': 'r2'
-            }
-        else:
-            # Сохранение локально (Render Disk)
-            filepath = os.path.join(self.media_path, filename)
-            file.save(filepath)
-            
-            logger.info(f"Файл сохранён локально: {filepath} ({file_size_mb:.2f}MB)")
-            return {
-                'path': filepath,
-                'url': f"{self.base_url}/{filename}",
-                'size_mb': file_size_mb,
-                'storage_type': 'disk'
-            }
-    
-    def get_file_url(self, filename):
-        """Получить URL для скачивания"""
-        if self.storage_type == 'r2' and BOTO3_AVAILABLE:
-            # Генерация временной ссылки (1 час)
+            r2_filename = f"{timestamp}_{filename}"
+
             try:
-                url = self.s3_client.generate_presigned_url(
-                    self.bucket,
-                    filename,
-                    ExpiresIn=3600
-                )
-                return url
+                # Загрузить файл
+                with open(file_path, 'rb') as f:
+                    self.s3_client.upload_fileobj(
+                        f,
+                        self.bucket,
+                        r2_filename,
+                        ExtraArgs={'ContentType': self._get_content_type(filename)}
+                    )
+
+                logger.info(f"✅ Файл загружен в R2: {r2_filename} ({file_size_mb:.2f}MB)")
+
+                # Return R2 path format
+                return {
+                    'path': f"r2://{self.bucket}/{r2_filename}",
+                    'url': f"r2://{self.bucket}/{r2_filename}",
+                    'size_mb': file_size_mb,
+                    'storage_type': 'r2',
+                    'filename': r2_filename
+                }
             except Exception as e:
-                logger.error(f"Ошибка генерации URL для {filename}: {e}")
-                return None
+                logger.error(f"❌ Failed to upload to R2: {e}")
+                # Fallback to local storage
+                self.storage_type = 'render_disk'
+
+        # Fallback: Локальное хранение
+        import shutil
+        dest_path = os.path.join(self.media_path, filename)
+
+        # Only copy if source and destination are different
+        if os.path.abspath(file_path) != os.path.abspath(dest_path):
+            shutil.copy2(file_path, dest_path)
+            logger.info(f"✅ Файл скопирован локально: {dest_path} ({file_size_mb:.2f}MB)")
         else:
-            # Локальный файл
-            return f"{self.base_url}/{filename}"
-    
+            logger.info(f"✅ Файл уже находится в нужном месте: {dest_path} ({file_size_mb:.2f}MB)")
+
+        return {
+            'path': dest_path,
+            'url': f"{self.base_url}/{filename}",
+            'size_mb': file_size_mb,
+            'storage_type': 'disk',
+            'filename': filename
+        }
+
+    def get_file_url(self, file_path, expiration=3600):
+        """Получить URL для доступа к файлу (с signed URL для R2)"""
+        if not file_path:
+            return None
+
+        # If it's an R2 path (starts with r2://), generate signed URL
+        if file_path.startswith('r2://'):
+            if self.storage_type == 'r2' and BOTO3_AVAILABLE:
+                # Extract bucket and key from r2://bucket/key
+                parts = file_path.replace('r2://', '').split('/', 1)
+                if len(parts) == 2:
+                    bucket, key = parts
+                    try:
+                        # Generate presigned URL
+                        url = self.s3_client.generate_presigned_url(
+                            'get_object',
+                            Params={'Bucket': bucket, 'Key': key},
+                            ExpiresIn=expiration
+                        )
+                        logger.info(f"✅ Generated signed URL for {key}")
+                        return url
+                    except Exception as e:
+                        logger.error(f"❌ Failed to generate signed URL for {file_path}: {e}")
+                        return None
+            return None
+
+        # For local files, return direct path
+        elif os.path.exists(file_path):
+            return f"/media/{os.path.basename(file_path)}"
+
+        return None
+
     def delete_file(self, filepath):
         """Удалить файл"""
-        if self.storage_type == 'r2' and BOTO3_AVAILABLE:
-            # Удалить из R2
-            filename = filepath.split('/')[-1]
-            try:
-                self.s3_client.delete_object(
-                    Bucket=self.bucket,
-                    Key=filename
-                )
-                logger.info(f"Файл удалён из R2: {filename}")
-            except Exception as e:
-                logger.error(f"Ошибка удаления файла {filename}: {e}")
+        if filepath and filepath.startswith('r2://'):
+            if self.storage_type == 'r2' and BOTO3_AVAILABLE:
+                # Extract bucket and key
+                parts = filepath.replace('r2://', '').split('/', 1)
+                if len(parts) == 2:
+                    bucket, key = parts
+                    try:
+                        self.s3_client.delete_object(Bucket=bucket, Key=key)
+                        logger.info(f"✅ Файл удалён из R2: {key}")
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка удаления файла {key}: {e}")
         else:
             # Удалить локально
-            if os.path.exists(filepath):
+            if filepath and os.path.exists(filepath):
                 os.remove(filepath)
-                logger.info(f"Файл удалён локально: {filepath}")
-    
-    def cleanup_old_files(self, days=7):
-        """Очистить старые файлы"""
-        if self.storage_type == 'r2' and BOTO3_AVAILABLE:
-            # Получить список файлов
-            try:
-                objects = self.s3_client.list_objects_v2(Bucket=self.bucket)
-                
-                cutoff_date = datetime.now() - timedelta(days=days)
-                deleted_count = 0
-                
-                for obj in objects.get('Contents', []):
-                    obj_date = obj['LastModified'].replace(tzinfo=None)
-                    if obj_date < cutoff_date:
-                        print(f"Удаляем старый файл: {obj['Key']}")
-                        self.s3_client.delete_object(
-                            Bucket=self.bucket,
-                            Key=obj['Key']
-                        )
-                        deleted_count += 1
-                
-                logger.info(f"Очистка R2: удалено {deleted_count} файлов старше {days} дней")
-                return deleted_count
-            except Exception as e:
-                logger.error(f"Ошибка очистки R2: {e}")
-                return 0
-        else:
-            # Локальная очистка
-            try:
-                cutoff_date = datetime.now() - timedelta(days=days)
-                deleted_count = 0
-                
-                for root, dirs, files in os.walk(self.media_path):
-                    for file in files:
-                        filepath = os.path.join(root, file)
-                        file_time = datetime.fromtimestamp(os.path.getmtime(filepath))
-                        
-                        if file_time < cutoff_date:
-                            os.remove(filepath)
-                            deleted_count += 1
-                
-                logger.info(f"Очистка диска: удалено {deleted_count} файлов старше {days} дней")
-                return deleted_count
-            except Exception as e:
-                logger.error(f"Ошибка очистки диска: {e}")
-                return 0
-    
-    def upload_file_from_path(self, file_path: str):
-        """Legacy method - files should already be uploaded via upload_file()"""
-        logger.warning(f"upload_file_from_path called with {file_path} - this method is deprecated")
-        logger.warning("Files should be uploaded directly using upload_file() method")
-
-        # Check if this is a duplicate call (file already in R2)
-        if file_path.startswith('r2://'):
-            logger.info(f"File {file_path} is already in R2, skipping duplicate upload")
-            return file_path
-
-        # Check if file exists
-        if not os.path.exists(file_path):
-            logger.error(f"File {file_path} does not exist for upload")
-            return file_path
-
-        # Check if we're trying to copy to the same location (render_disk fallback)
-        if self.storage_type == 'render_disk':
-            # For render_disk, just return the local path
-            logger.info(f"Storage type is render_disk, keeping local file: {file_path}")
-            return file_path
-
-        # For R2 storage, upload the file
-        try:
-            with open(file_path, 'rb') as f:
-                file_data = f.read()
-
-            # Create file-like object
-            from io import BytesIO
-            file_obj = BytesIO(file_data)
-            # Add required attributes
-            setattr(file_obj, 'filename', os.path.basename(file_path))
-            setattr(file_obj, 'content_type', 'application/octet-stream')  # Default
-
-            # Upload using normal method
-            result = self.upload_file(file_obj, os.path.basename(file_path))
-            logger.info(f"Successfully uploaded {file_path} to {result['path']}")
-
-            # Clean up local file after successful upload
-            try:
-                os.remove(file_path)
-                logger.info(f"Cleaned up local file {file_path}")
-            except Exception as e:
-                logger.warning(f"Could not clean up {file_path}: {e}")
-
-            return result['path']
-
-        except Exception as e:
-            logger.error(f"Error in upload_file_from_path for {file_path}: {e}")
-            return file_path
+                logger.info(f"✅ Файл удалён локально: {filepath}")
 
     def get_storage_stats(self):
         """Получить статистику хранилища"""
@@ -374,7 +246,7 @@ class StorageManager:
                 objects = self.s3_client.list_objects_v2(Bucket=self.bucket)
                 total_size = sum(obj['Size'] for obj in objects.get('Contents', []))
                 file_count = len(objects.get('Contents', []))
-                
+
                 return {
                     'storage_type': 'r2',
                     'total_size_mb': total_size / (1024 * 1024),
@@ -394,14 +266,14 @@ class StorageManager:
             # Локальное хранилище
             total_size = 0
             file_count = 0
-            
+
             for root, dirs, files in os.walk(self.media_path):
                 for file in files:
                     filepath = os.path.join(root, file)
                     if os.path.isfile(filepath):
                         file_count += 1
                         total_size += os.path.getsize(filepath)
-            
+
             return {
                 'storage_type': 'disk',
                 'total_size_mb': total_size / (1024 * 1024),
