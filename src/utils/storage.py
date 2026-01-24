@@ -189,16 +189,22 @@ class StorageManager:
 
     def get_file_url(self, file_path, expiration=3600):
         """Получить URL для доступа к файлу (с signed URL для R2)"""
+        logger.info(f"get_file_url called: file_path={file_path}, storage_type={self.storage_type}")
+
         if not file_path:
+            logger.warning("get_file_url: file_path is empty")
             return None
 
         # If it's an R2 path (starts with r2://), generate signed URL
         if file_path.startswith('r2://'):
+            logger.info(f"get_file_url: detected R2 path: {file_path}")
             if self.storage_type == 'r2' and BOTO3_AVAILABLE:
                 # Extract bucket and key from r2://bucket/key
                 parts = file_path.replace('r2://', '').split('/', 1)
+                logger.info(f"get_file_url: extracted parts: {parts}")
                 if len(parts) == 2:
                     bucket, key = parts
+                    logger.info(f"get_file_url: bucket={bucket}, key={key}")
                     try:
                         # Generate presigned URL
                         url = self.s3_client.generate_presigned_url(
@@ -206,11 +212,15 @@ class StorageManager:
                             Params={'Bucket': bucket, 'Key': key},
                             ExpiresIn=expiration
                         )
-                        logger.info(f"✅ Generated signed URL for {key}")
+                        logger.info(f"✅ Generated signed URL for {key}: {url[:100]}...")
                         return url
                     except Exception as e:
-                        logger.error(f"❌ Failed to generate signed URL for {file_path}: {e}")
+                        logger.error(f"❌ Failed to generate signed URL for {file_path}: {e}", exc_info=True)
                         return None
+                else:
+                    logger.error(f"get_file_url: invalid R2 path format, expected 2 parts but got {len(parts)}")
+            else:
+                logger.warning(f"get_file_url: R2 storage not available (storage_type={self.storage_type}, boto3={BOTO3_AVAILABLE})")
             return None
 
         # For local files, return direct path

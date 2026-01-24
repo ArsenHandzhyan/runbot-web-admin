@@ -674,12 +674,18 @@ def create_app():
         <p>Current working dir: {os.getcwd()}</p>
         """
 
-    @app.route('/get-file-url/<path:file_path>')
+    @app.route('/get-file-url')
     @login_required
-    def get_file_url(file_path):
+    def get_file_url():
         """Generate signed URL for R2 files"""
         try:
+            from flask import request
             from src.utils.storage import get_storage_manager
+
+            file_path = request.args.get('path')
+            if not file_path:
+                return {'error': 'No file path provided'}, 400
+
             storage = get_storage_manager()
             logger.info(f"get_file_url: file_path={file_path}, storage_type={storage.storage_type}")
             url = storage.get_file_url(file_path)
