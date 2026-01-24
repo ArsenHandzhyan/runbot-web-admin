@@ -20,8 +20,17 @@ except ImportError:
 class StorageManager:
     """Управление файлами с поддержкой Cloudflare R2 и Render Disk"""
 
+    # Default R2 configuration (hardcoded for production use)
+    DEFAULT_R2_CONFIG = {
+        'account_id': '5075df75a40c529b865d4688f9180d7a',
+        'access_key': 'ff88cca783fc232cbb4dcf3907d17ce5',
+        'secret_key': '5fa2e2085000c8e65d95ede90c213d14ae282b07b1656148c14d148704f3e68c',
+        'bucket': 'runbot-media'
+    }
+
     def __init__(self):
-        self.storage_type = os.getenv('STORAGE_TYPE', 'render_disk')
+        # Default to R2 storage for production
+        self.storage_type = os.getenv('STORAGE_TYPE', 'r2')
         self.max_size_mb = int(os.getenv('MAX_UPLOAD_SIZE_MB', '10'))
 
         logger.info(f"StorageManager initializing: storage_type={self.storage_type}")
@@ -34,34 +43,37 @@ class StorageManager:
         }
 
         if self.storage_type == 'r2' and BOTO3_AVAILABLE:
-            # Настройка R2
-            account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID')
-            access_key = os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID')
-            secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY')
+            # Настройка R2 - использовать переменные окружения или дефолтные значения
+            account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID', self.DEFAULT_R2_CONFIG['account_id'])
+            access_key = os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID', self.DEFAULT_R2_CONFIG['access_key'])
+            secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY', self.DEFAULT_R2_CONFIG['secret_key'])
+            self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET', self.DEFAULT_R2_CONFIG['bucket'])
 
             logger.info(f"R2 credential check: account_id={'SET' if account_id else 'NOT SET'}, access_key={'SET' if access_key else 'NOT SET'}, secret_key={'SET' if secret_key else 'NOT SET'}")
 
             if account_id and access_key and secret_key:
                 endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
-                self.s3_client = boto3.client(
-                    's3',
-                    endpoint_url=endpoint_url,
-                    aws_access_key_id=access_key,
-                    aws_secret_access_key=secret_key,
-                    region_name='auto'
-                )
-                self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET', 'runbot-media')
-                logger.info(f"✅ R2 storage initialized: bucket={self.bucket}, endpoint={endpoint_url}")
+                try:
+                    self.s3_client = boto3.client(
+                        's3',
+                        endpoint_url=endpoint_url,
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name='auto'
+                    )
+                    logger.info(f"✅ R2 storage initialized: bucket={self.bucket}, endpoint={endpoint_url}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to initialize R2 client: {e}")
+                    self.storage_type = 'render_disk'
             else:
-                logger.error(f"❌ R2 credentials not found in environment variables")
-                logger.error(f"   Missing: account_id={not account_id}, access_key={not access_key}, secret_key={not secret_key}")
+                logger.error(f"❌ R2 credentials not found")
                 self.storage_type = 'render_disk'
         elif self.storage_type == 'r2' and not BOTO3_AVAILABLE:
             logger.error("❌ R2 storage requested but boto3 is not available")
             self.storage_type = 'render_disk'
 
-        # Для локального хранения
-        if self.storage_type != 'r2' or not BOTO3_AVAILABLE:
+        # Для локального хранения (fallback)
+        if self.storage_type != 'r2':
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             self.media_path = os.path.join(project_root, 'media')
             os.makedirs(self.media_path, exist_ok=True)
@@ -189,22 +201,16 @@ class StorageManager:
 
     def get_file_url(self, file_path, expiration=3600):
         """Получить URL для доступа к файлу (с signed URL для R2)"""
-        logger.info(f"get_file_url called: file_path={file_path}, storage_type={self.storage_type}")
-
         if not file_path:
-            logger.warning("get_file_url: file_path is empty")
             return None
 
         # If it's an R2 path (starts with r2://), generate signed URL
         if file_path.startswith('r2://'):
-            logger.info(f"get_file_url: detected R2 path: {file_path}")
             if self.storage_type == 'r2' and BOTO3_AVAILABLE:
                 # Extract bucket and key from r2://bucket/key
                 parts = file_path.replace('r2://', '').split('/', 1)
-                logger.info(f"get_file_url: extracted parts: {parts}")
                 if len(parts) == 2:
                     bucket, key = parts
-                    logger.info(f"get_file_url: bucket={bucket}, key={key}")
                     try:
                         # Generate presigned URL
                         url = self.s3_client.generate_presigned_url(
@@ -212,68 +218,17 @@ class StorageManager:
                             Params={'Bucket': bucket, 'Key': key},
                             ExpiresIn=expiration
                         )
-                        logger.info(f"✅ Generated signed URL for {key}: {url[:100]}...")
+                        logger.info(f"✅ Generated signed URL for {key}")
                         return url
                     except Exception as e:
-                        logger.error(f"❌ Failed to generate signed URL for {file_path}: {e}", exc_info=True)
+                        logger.error(f"❌ Failed to generate signed URL for {file_path}: {e}")
                         return None
-                else:
-                    logger.error(f"get_file_url: invalid R2 path format, expected 2 parts but got {len(parts)}")
-            else:
-                logger.warning(f"get_file_url: R2 storage not available (storage_type={self.storage_type}, boto3={BOTO3_AVAILABLE})")
             return None
 
         # For local files, return direct path
         elif os.path.exists(file_path):
             return f"/media/{os.path.basename(file_path)}"
 
-        return None
-
-    def download_file(self, file_path):
-        """Скачать файл из хранилища (возвращает bytes)"""
-        logger.info(f"download_file called: file_path={file_path}, storage_type={self.storage_type}")
-
-        if not file_path:
-            logger.warning("download_file: file_path is empty")
-            return None
-
-        # If it's an R2 path (starts with r2://), download from R2
-        if file_path.startswith('r2://'):
-            logger.info(f"download_file: detected R2 path: {file_path}")
-            if self.storage_type == 'r2' and BOTO3_AVAILABLE:
-                # Extract bucket and key from r2://bucket/key
-                parts = file_path.replace('r2://', '').split('/', 1)
-                logger.info(f"download_file: extracted parts: {parts}")
-                if len(parts) == 2:
-                    bucket, key = parts
-                    logger.info(f"download_file: bucket={bucket}, key={key}")
-                    try:
-                        # Download file from R2
-                        response = self.s3_client.get_object(Bucket=bucket, Key=key)
-                        file_data = response['Body'].read()
-                        logger.info(f"✅ Downloaded file from R2: {key}, size={len(file_data)} bytes")
-                        return file_data
-                    except Exception as e:
-                        logger.error(f"❌ Failed to download file from R2 {file_path}: {e}", exc_info=True)
-                        return None
-                else:
-                    logger.error(f"download_file: invalid R2 path format, expected 2 parts but got {len(parts)}")
-            else:
-                logger.warning(f"download_file: R2 storage not available (storage_type={self.storage_type}, boto3={BOTO3_AVAILABLE})")
-            return None
-
-        # For local files, read from disk
-        elif os.path.exists(file_path):
-            try:
-                with open(file_path, 'rb') as f:
-                    file_data = f.read()
-                logger.info(f"✅ Read local file: {file_path}, size={len(file_data)} bytes")
-                return file_data
-            except Exception as e:
-                logger.error(f"❌ Failed to read local file {file_path}: {e}")
-                return None
-
-        logger.warning(f"download_file: file not found: {file_path}")
         return None
 
     def delete_file(self, filepath):
