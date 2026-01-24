@@ -30,6 +30,13 @@ class SubmissionStatus(enum.Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
 
+class AIAnalysisStatus(enum.Enum):
+    QUEUED = "queued"           # В очереди на анализ
+    PROCESSING = "processing"   # Обрабатывается
+    COMPLETED = "completed"     # Успешно проанализировано
+    FAILED = "failed"          # Ошибка анализа
+    MANUAL_REQUIRED = "manual_required"  # Требуется ручная проверка
+
 class EventType(enum.Enum):
     RUN_EVENT = "run_event"      # Забег
     CHALLENGE = "challenge"      # Челлендж
@@ -94,6 +101,43 @@ class Submission(Base):
     # Relationships
     participant = relationship("Participant", back_populates="submissions")
     challenge = relationship("Challenge", back_populates="submissions")
+    ai_analysis = relationship("AIAnalysis", back_populates="submission", uselist=False)
+
+class AIAnalysis(Base):
+    """AI video analysis results"""
+    __tablename__ = 'ai_analysis'
+
+    id = Column(Integer, primary_key=True)
+    submission_id = Column(Integer, ForeignKey('submissions.id'), nullable=False, unique=True)
+
+    # Статус анализа
+    status = Column(Enum(AIAnalysisStatus), default=AIAnalysisStatus.QUEUED)
+
+    # Результаты AI
+    detected_exercise = Column(String)  # "push_ups", "squats", "plank"
+    detected_reps = Column(Integer)     # Количество повторений
+    confidence = Column(Float)          # 0.0 - 1.0
+    duration_sec = Column(Float)        # Длительность видео
+
+    # Детали анализа
+    frames_analyzed = Column(Integer)   # Сколько кадров проанализировано
+    frames_with_pose = Column(Integer)  # В скольких найдена поза
+    pose_detection_rate = Column(Float) # frames_with_pose / frames_analyzed
+
+    # Флаги качества
+    manual_review_required = Column(Boolean, default=False)
+    quality_issues = Column(Text)       # JSON список проблем
+
+    # Технические данные
+    processing_time_sec = Column(Float)
+    error_message = Column(Text)
+
+    # Метаданные
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime)
+
+    # Relationships
+    submission = relationship("Submission", back_populates="ai_analysis")
 
 class ParticipantStats(Base):
     """Statistics model - calculated participant statistics"""
