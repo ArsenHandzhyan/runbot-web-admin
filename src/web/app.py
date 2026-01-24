@@ -679,9 +679,11 @@ def create_app():
     def get_file_url(file_path):
         """Generate signed URL for R2 files"""
         try:
-            from src.utils.storage import StorageManager
-            storage = StorageManager()
+            from src.utils.storage import get_storage_manager
+            storage = get_storage_manager()
+            logger.info(f"get_file_url: file_path={file_path}, storage_type={storage.storage_type}")
             url = storage.get_file_url(file_path)
+            logger.info(f"get_file_url: generated url={url}")
             if url:
                 return {'url': url}, 200
             else:
