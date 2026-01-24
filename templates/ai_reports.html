@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}AI Анализ - RunBot Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="fas fa-robot"></i> AI Анализ Видео</h2>
+            <p class="text-muted">Результаты автоматического анализа видео с упражнениями</p>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-primary">{{ stats.total }}</h3>
+                    <p class="text-muted mb-0">Всего анализов</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h3 class="text-warning">{{ stats.queued }}</h3>
+                    <p class="text-muted mb-0">В очереди</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h3 class="text-info">{{ stats.processing }}</h3>
+                    <p class="text-muted mb-0">Обрабатывается</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h3 class="text-success">{{ stats.completed }}</h3>
+                    <p class="text-muted mb-0">Завершено</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-danger">
+                <div class="card-body text-center">
+                    <h3 class="text-danger">{{ stats.failed }}</h3>
+                    <p class="text-muted mb-0">Ошибки</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card border-secondary">
+                <div class="card-body text-center">
+                    <h3 class="text-secondary">{{ stats.manual_required }}</h3>
+                    <p class="text-muted mb-0">Ручная проверка</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Reports Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-table"></i> Последние анализы (100)</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Участник</th>
+                            <th>Челлендж</th>
+                            <th>Статус</th>
+                            <th>Упражнение</th>
+                            <th>Повторения</th>
+                            <th>Уверенность</th>
+                            <th>Детали</th>
+                            <th>Время</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for report in reports %}
+                        <tr>
+                            <td>#{{ report.ai_analysis.id }}</td>
+                            <td>
+                                <strong>{{ report.participant.full_name }}</strong><br>
+                                <small class="text-muted">#{{ report.participant.start_number }}</small>
+                            </td>
+                            <td>{{ report.challenge.name }}</td>
+                            <td>
+                                {% if report.ai_analysis.status == AIAnalysisStatus.QUEUED %}
+                                    <span class="badge bg-warning text-dark">⏳ В очереди</span>
+                                {% elif report.ai_analysis.status == AIAnalysisStatus.PROCESSING %}
+                                    <span class="badge bg-info">⚙️ Обрабатывается</span>
+                                {% elif report.ai_analysis.status == AIAnalysisStatus.COMPLETED %}
+                                    <span class="badge bg-success">✅ Завершено</span>
+                                {% elif report.ai_analysis.status == AIAnalysisStatus.FAILED %}
+                                    <span class="badge bg-danger">❌ Ошибка</span>
+                                {% elif report.ai_analysis.status == AIAnalysisStatus.MANUAL_REQUIRED %}
+                                    <span class="badge bg-secondary">⚠️ Ручная проверка</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if report.ai_analysis.detected_exercise == 'push_ups' %}
+                                    <i class="fas fa-hands"></i> Отжимания
+                                {% elif report.ai_analysis.detected_exercise == 'squats' %}
+                                    <i class="fas fa-walking"></i> Приседания
+                                {% else %}
+                                    {{ report.ai_analysis.detected_exercise or '-' }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if report.ai_analysis.detected_reps %}
+                                    <strong class="text-primary">{{ report.ai_analysis.detected_reps }}</strong>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if report.ai_analysis.confidence %}
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar
+                                            {% if report.ai_analysis.confidence >= 0.8 %}bg-success
+                                            {% elif report.ai_analysis.confidence >= 0.6 %}bg-warning
+                                            {% else %}bg-danger
+                                            {% endif %}"
+                                            role="progressbar"
+                                            style="width: {{ (report.ai_analysis.confidence * 100)|round|int }}%"
+                                            aria-valuenow="{{ (report.ai_analysis.confidence * 100)|round|int }}"
+                                            aria-valuemin="0"
+                                            aria-valuemax="100">
+                                            {{ (report.ai_analysis.confidence * 100)|round|int }}%
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>
+                                    {% if report.ai_analysis.frames_analyzed %}
+                                        <i class="fas fa-film"></i> {{ report.ai_analysis.frames_analyzed }} кадров<br>
+                                    {% endif %}
+                                    {% if report.ai_analysis.pose_detection_rate %}
+                                        <i class="fas fa-user"></i> {{ (report.ai_analysis.pose_detection_rate * 100)|round|int }}% поза<br>
+                                    {% endif %}
+                                    {% if report.ai_analysis.duration_sec %}
+                                        <i class="fas fa-clock"></i> {{ report.ai_analysis.duration_sec|round(1) }}с<br>
+                                    {% endif %}
+                                    {% if report.ai_analysis.quality_issues %}
+                                        <span class="text-warning"><i class="fas fa-exclamation-triangle"></i> {{ report.ai_analysis.quality_issues }}</span><br>
+                                    {% endif %}
+                                    {% if report.ai_analysis.error_message %}
+                                        <span class="text-danger"><i class="fas fa-times-circle"></i> {{ report.ai_analysis.error_message }}</span>
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    {% if report.ai_analysis.processing_time_sec %}
+                                        <i class="fas fa-stopwatch"></i> {{ report.ai_analysis.processing_time_sec|round(1) }}с
+                                    {% elif report.ai_analysis.created_at %}
+                                        {{ report.ai_analysis.created_at.strftime('%d.%m %H:%M') }}
+                                    {% endif %}
+                                </small>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3"></i>
+                                <p>Нет данных для отображения</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Block -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle"></i> Информация</h5>
+                <ul class="mb-0">
+                    <li>AI Worker автоматически анализирует видео с отжиманиями и приседаниями</li>
+                    <li>Анализ включает подсчёт повторений через определение позы (MediaPipe)</li>
+                    <li>Результаты с уверенностью &lt; 75% помечаются для ручной проверки</li>
+                    <li>Worker проверяет очередь каждые 30 секунд</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh page every 30 seconds
+setTimeout(function() {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

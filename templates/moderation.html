@@ -89,6 +89,7 @@
                                 <th>Участник</th>
                                 <th>Челлендж</th>
                                 <th>Результат</th>
+                                <th>AI Анализ</th>
                                 <th>Дата</th>
                                 <th>Действия</th>
                             </tr>
@@ -124,6 +125,23 @@
                                     <span class="badge bg-primary">
                                         {{ submission.result_value }} {{ submission.result_unit }}
                                     </span>
+                                </td>
+                                <td>
+                                    {% if item.ai_analysis %}
+                                        {% if item.ai_analysis.status.value == 'completed' %}
+                                            <span class="badge bg-success">✅ {{ item.ai_analysis.detected_reps }} повт. ({{ (item.ai_analysis.confidence * 100)|round|int }}%)</span>
+                                        {% elif item.ai_analysis.status.value == 'processing' %}
+                                            <span class="badge bg-info">⏳ Обработка...</span>
+                                        {% elif item.ai_analysis.status.value == 'queued' %}
+                                            <span class="badge bg-warning text-dark">⏳ В очереди</span>
+                                        {% elif item.ai_analysis.status.value == 'failed' %}
+                                            <span class="badge bg-danger">❌ Ошибка</span>
+                                        {% elif item.ai_analysis.status.value == 'manual_required' %}
+                                            <span class="badge bg-secondary">⚠️ Проверка</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {{ submission.submission_date.strftime('%d.%m.%Y %H:%M') }}
@@ -248,6 +266,7 @@
                                 <th>Участник</th>
                                 <th>Челлендж</th>
                                 <th>Результат</th>
+                                <th>AI Анализ</th>
                                 <th>Статус</th>
                                 <th>Дата</th>
                                 <th>Действия</th>
@@ -282,6 +301,21 @@
                                     <span class="badge bg-primary">
                                         {{ submission.result_value }} {{ submission.result_unit }}
                                     </span>
+                                </td>
+                                <td>
+                                    {% if item.ai_analysis %}
+                                        {% if item.ai_analysis.status.value == 'completed' %}
+                                            <small class="text-success">✅ {{ item.ai_analysis.detected_reps }} ({{ (item.ai_analysis.confidence * 100)|round|int }}%)</small>
+                                        {% elif item.ai_analysis.status.value == 'processing' %}
+                                            <small class="text-info">⏳</small>
+                                        {% elif item.ai_analysis.status.value == 'queued' %}
+                                            <small class="text-warning">⏳</small>
+                                        {% elif item.ai_analysis.status.value == 'failed' %}
+                                            <small class="text-danger">❌</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <small class="text-muted">-</small>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if item.status_value == 'approved' %}

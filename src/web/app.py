@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 
 from src.database.db import DatabaseManager
-from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, ChallengeRegistration
+from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, ChallengeRegistration, AIAnalysis, AIAnalysisStatus
 from src.utils.event_manager import EventManager
 from src.utils.challenge_manager import ChallengeManager
 # NOTE: telebot import removed - web interface doesn't need bot functionality
@@ -436,10 +436,16 @@ def create_app():
                     else:
                         status_value = status_str.lower()
                 
+                # Get AI analysis if exists
+                ai_analysis = db.query(AIAnalysis).filter(
+                    AIAnalysis.submission_id == submission.id
+                ).first()
+
                 submissions_with_participants.append({
                     'submission': submission,
                     'participant': participant,
-                    'status_value': status_value
+                    'status_value': status_value,
+                    'ai_analysis': ai_analysis
                 })
             
             return render_template('challenge_submissions.html', 
@@ -480,11 +486,15 @@ def create_app():
                 challenge = db.query(Challenge).filter(
                     Challenge.id == submission.challenge_id
                 ).first()
+                ai_analysis = db.query(AIAnalysis).filter(
+                    AIAnalysis.submission_id == submission.id
+                ).first()
 
                 pending_with_details.append({
                     'submission': submission,
                     'participant': participant,
-                    'challenge': challenge
+                    'challenge': challenge,
+                    'ai_analysis': ai_analysis
                 })
 
             for submission in all_submissions:
@@ -493,6 +503,9 @@ def create_app():
                 ).first()
                 challenge = db.query(Challenge).filter(
                     Challenge.id == submission.challenge_id
+                ).first()
+                ai_analysis = db.query(AIAnalysis).filter(
+                    AIAnalysis.submission_id == submission.id
                 ).first()
 
                 # Convert status for template
@@ -511,7 +524,8 @@ def create_app():
                     'submission': submission,
                     'participant': participant,
                     'challenge': challenge,
-                    'status_value': status_value
+                    'status_value': status_value,
+                    'ai_analysis': ai_analysis
                 })
 
             return render_template('moderation.html',
@@ -835,7 +849,49 @@ def create_app():
             flash(f'Ошибка при деактивации администратора: {str(e)}', 'error')
         
         return redirect(url_for('admins'))
-    
+
+    @app.route('/ai-reports')
+    @login_required
+    def ai_reports():
+        """View AI analysis reports dashboard"""
+        db = db_manager.get_session()
+        try:
+            # Get all AI analyses with related data
+            analyses = db.query(AIAnalysis, Submission, Participant, Challenge).join(
+                Submission, AIAnalysis.submission_id == Submission.id
+            ).join(
+                Participant, Submission.participant_id == Participant.id
+            ).join(
+                Challenge, Submission.challenge_id == Challenge.id
+            ).order_by(AIAnalysis.created_at.desc()).limit(100).all()
+
+            # Count by status
+            stats = {
+                'total': db.query(AIAnalysis).count(),
+                'queued': db.query(AIAnalysis).filter(AIAnalysis.status == AIAnalysisStatus.QUEUED).count(),
+                'processing': db.query(AIAnalysis).filter(AIAnalysis.status == AIAnalysisStatus.PROCESSING).count(),
+                'completed': db.query(AIAnalysis).filter(AIAnalysis.status == AIAnalysisStatus.COMPLETED).count(),
+                'failed': db.query(AIAnalysis).filter(AIAnalysis.status == AIAnalysisStatus.FAILED).count(),
+                'manual_required': db.query(AIAnalysis).filter(AIAnalysis.status == AIAnalysisStatus.MANUAL_REQUIRED).count(),
+            }
+
+            # Format data for template
+            reports = []
+            for ai_analysis, submission, participant, challenge in analyses:
+                reports.append({
+                    'ai_analysis': ai_analysis,
+                    'submission': submission,
+                    'participant': participant,
+                    'challenge': challenge
+                })
+
+            return render_template('ai_reports.html',
+                                 reports=reports,
+                                 stats=stats,
+                                 AIAnalysisStatus=AIAnalysisStatus)
+        finally:
+            db.close()
+
     return app
 
 if __name__ == '__main__':
