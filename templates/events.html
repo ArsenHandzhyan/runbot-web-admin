@@ -64,11 +64,7 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% if event.is_active %}
-                                                <span class="badge bg-success">Активно</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">Неактивно</span>
-                                            {% endif %}
+                                            <span class="badge bg-{{ event.status_class }}">{{ event.status_text }}</span>
                                         </td>
                                         <td>
                                             <a href="{{ url_for('edit_event', event_id=event.id) }}" class="btn btn-sm btn-outline-primary">

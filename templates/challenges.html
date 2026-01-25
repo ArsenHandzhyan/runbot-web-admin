@@ -74,11 +74,7 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% if challenge.is_active %}
-                                                <span class="badge bg-success">Активен</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">Неактивен</span>
-                                            {% endif %}
+                                            <span class="badge bg-{{ challenge.status_class }}">{{ challenge.status_text }}</span>
                                         </td>
                                         <td>
                                             <a href="{{ url_for('edit_challenge', challenge_id=challenge.id) }}" class="btn btn-sm btn-outline-primary">

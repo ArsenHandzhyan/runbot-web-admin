@@ -162,6 +162,50 @@ def create_app():
         db = db_manager.get_session()
         try:
             events_list = db.query(Event).order_by(Event.created_at.desc()).all()
+
+            # Add status information to each event
+            now = datetime.now()
+            for event in events_list:
+                # Calculate event status
+                if event.status == EventStatus.CANCELLED:
+                    event.status_text = "Отменен"
+                    event.status_class = "danger"
+                elif event.status == EventStatus.DRAFT:
+                    event.status_text = "Черновик"
+                    event.status_class = "secondary"
+                elif now < event.start_date:
+                    # Event hasn't started yet
+                    delta = event.start_date - now
+                    days = delta.days
+                    hours = delta.seconds // 3600
+
+                    if days > 0:
+                        event.status_text = f"Начало через {days} дн."
+                    elif hours > 0:
+                        event.status_text = f"Начало через {hours} ч."
+                    else:
+                        minutes = delta.seconds // 60
+                        event.status_text = f"Начало через {minutes} мин."
+                    event.status_class = "warning"
+                elif now > event.end_date:
+                    # Event has ended
+                    event.status_text = "Завершен"
+                    event.status_class = "info"
+                else:
+                    # Event is active now
+                    delta = event.end_date - now
+                    days = delta.days
+                    hours = delta.seconds // 3600
+
+                    if days > 0:
+                        event.status_text = f"Активен ({days} дн. осталось)"
+                    elif hours > 0:
+                        event.status_text = f"Активен ({hours} ч. осталось)"
+                    else:
+                        minutes = delta.seconds // 60
+                        event.status_text = f"Активен ({minutes} мин. осталось)"
+                    event.status_class = "success"
+
             return render_template('events.html', events=events_list)
         finally:
             db.close()
@@ -265,28 +309,69 @@ def create_app():
         try:
             # Get all challenges
             challenges_list = db.query(Challenge).order_by(Challenge.created_at.desc()).all()
-            
+
             # Add participant and submission counts to each challenge
             challenges_with_counts = []
+            now = datetime.now()
+
             for challenge in challenges_list:
                 # Count participants
                 participant_count = db.query(ChallengeRegistration).filter(
                     ChallengeRegistration.challenge_id == challenge.id,
                     ChallengeRegistration.is_active == True
                 ).count()
-                
+
                 # Count submissions
                 submission_count = db.query(Submission).filter(
                     Submission.challenge_id == challenge.id
                 ).count()
-                
-                # Add counts to challenge object
+
+                # Calculate challenge status
+                if not challenge.is_active:
+                    status_text = "Неактивен"
+                    status_class = "secondary"
+                elif now < challenge.start_date:
+                    # Challenge hasn't started yet
+                    delta = challenge.start_date - now
+                    days = delta.days
+                    hours = delta.seconds // 3600
+
+                    if days > 0:
+                        status_text = f"Начало через {days} дн."
+                    elif hours > 0:
+                        status_text = f"Начало через {hours} ч."
+                    else:
+                        minutes = delta.seconds // 60
+                        status_text = f"Начало через {minutes} мин."
+                    status_class = "warning"
+                elif now > challenge.end_date:
+                    # Challenge has ended
+                    status_text = "Завершен"
+                    status_class = "danger"
+                else:
+                    # Challenge is active now
+                    delta = challenge.end_date - now
+                    days = delta.days
+                    hours = delta.seconds // 3600
+
+                    if days > 0:
+                        status_text = f"Активен ({days} дн. осталось)"
+                    elif hours > 0:
+                        status_text = f"Активен ({hours} ч. осталось)"
+                    else:
+                        minutes = delta.seconds // 60
+                        status_text = f"Активен ({minutes} мин. осталось)"
+                    status_class = "success"
+
+                # Add counts and status to challenge object
                 challenge.participant_count = participant_count
                 challenge.submission_count = submission_count
+                challenge.status_text = status_text
+                challenge.status_class = status_class
                 challenges_with_counts.append(challenge)
-            
-            return render_template('challenges.html', 
-                                 challenges=challenges_with_counts, 
+
+            return render_template('challenges.html',
+                                 challenges=challenges_with_counts,
                                  ChallengeType=ChallengeType)
         finally:
             db.close()
