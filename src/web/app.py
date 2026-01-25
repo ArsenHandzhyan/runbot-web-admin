@@ -698,7 +698,7 @@ def create_app():
 
             file_path = request.args.get('path')
             if not file_path:
-                return {'error': 'No file path provided'}, 400
+                return {'error': 'Путь к файлу не указан'}, 400
 
             storage = get_storage_manager()
             logger.info(f"get_file_url: file_path={file_path}, storage_type={storage.storage_type}")
@@ -707,10 +707,10 @@ def create_app():
             if url:
                 return {'url': url}, 200
             else:
-                return {'error': 'File not found'}, 404
+                return {'error': 'Файл не найден'}, 404
         except Exception as e:
             logger.error(f"Error generating file URL: {e}")
-            return {'error': str(e)}, 500
+            return {'error': f'Ошибка получения файла: {str(e)}'}, 500
 
     @app.route('/debug-media/<int:submission_id>')
     @login_required
