@@ -827,7 +827,36 @@ def create_app():
             db.close()
 
     # setup-demo route removed
-    
+
+    @app.route('/run-migration-registrations')
+    @login_required
+    def run_migration_registrations():
+        """Temporary endpoint to run registrations migration"""
+        try:
+            import subprocess
+            import os
+
+            # Get project root
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            script_path = os.path.join(project_root, 'migrate_registrations.py')
+
+            # Run migration script
+            result = subprocess.run(
+                ['python3', script_path],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+
+            output = f"<h1>Migration Output</h1><pre>{result.stdout}</pre>"
+            if result.stderr:
+                output += f"<h2>Errors:</h2><pre>{result.stderr}</pre>"
+            output += f"<p>Exit code: {result.returncode}</p>"
+
+            return output
+        except Exception as e:
+            return f"<h1>Error running migration</h1><pre>{str(e)}</pre>"
+
     @app.route('/admins/add', methods=['POST'])
     @login_required
     def add_admin():
