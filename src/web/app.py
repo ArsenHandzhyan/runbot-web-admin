@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 
 from src.database.db import DatabaseManager
-from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, ChallengeRegistration, AIAnalysis, AIAnalysisStatus
+from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, EventStatus, ChallengeRegistration, AIAnalysis, AIAnalysisStatus
 from src.utils.event_manager import EventManager
 from src.utils.challenge_manager import ChallengeManager
 # NOTE: telebot import removed - web interface doesn't need bot functionality
