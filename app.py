@@ -15,6 +15,21 @@ load_dotenv()
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
+# Run database migration if script exists (one-time operation)
+migration_script = current_dir / "migrate_render_to_supabase.py"
+if migration_script.exists():
+    print("🔄 Running database migration to Supabase...")
+    try:
+        import subprocess
+        result = subprocess.run([sys.executable, str(migration_script)],
+                              capture_output=True, text=True, timeout=300)
+        print(result.stdout)
+        if result.returncode != 0:
+            print(f"⚠️  Migration warning: {result.stderr}")
+    except Exception as e:
+        print(f"⚠️  Migration failed or already completed: {e}")
+    print("")
+
 # Import the Flask app
 from src.web.app import create_app
 
