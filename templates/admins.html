@@ -85,7 +85,6 @@
                         <thead>
                             <tr>
                                 <th>№</th>
-                                <th>Telegram ID</th>
                                 <th>ФИО/Username</th>
                                 <th>Дата добавления</th>
                                 <th>Статус</th>
@@ -96,9 +95,6 @@
                             {% for admin in admins %}
                             <tr class="{% if not admin.is_active %}table-secondary{% endif %}">
                                 <td>{{ loop.index }}</td>
-                                <td>
-                                    <code>{{ admin.telegram_id }}</code>
-                                </td>
                                 <td>
                                     {% if admin.full_name %}
                                         {{ admin.full_name }}
@@ -165,33 +161,21 @@
     </div>
 </div>
 
-<!-- System Info -->
+<!-- Notes -->
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-cogs"></i> Системная информация
+                    <i class="fas fa-info-circle"></i> Примечания
                 </h5>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Переменные окружения:</h6>
-                        <ul class="list-unstyled">
-                            <li><strong>ADMIN_TELEGRAM_IDS:</strong> {{ admin_telegram_ids or 'Не задано' }}</li>
-                            <li><strong>ADMIN_TELEGRAM_ID:</strong> {{ admin_telegram_id or 'Не задано' }}</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Примечания:</h6>
-                        <ul class="list-unstyled">
-                            <li><i class="fas fa-info-circle text-info"></i> Изменения применяются после перезапуска приложения</li>
-                            <li><i class="fas fa-exclamation-triangle text-warning"></i> Рекомендуется иметь минимум 2 администратора</li>
-                            <li><i class="fas fa-lock text-danger"></i> Храните Telegram ID в секрете</li>
-                        </ul>
-                    </div>
-                </div>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2"><i class="fas fa-info-circle text-info"></i> Изменения применяются после перезапуска приложения</li>
+                    <li class="mb-2"><i class="fas fa-exclamation-triangle text-warning"></i> Рекомендуется иметь минимум 2 администратора</li>
+                    <li class="mb-0"><i class="fas fa-lock text-danger"></i> Храните Telegram ID в секрете</li>
+                </ul>
             </div>
         </div>
     </div>
