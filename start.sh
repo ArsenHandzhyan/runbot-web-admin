@@ -41,6 +41,14 @@ echo "Starting web server on port $PORT..."
 echo "Access the admin panel at: http://localhost:$PORT"
 echo "Configuration file: .env"
 echo ""
+
+# Run database migration if script exists
+if [ -f "migrate_render_to_supabase.py" ]; then
+    echo "🔄 Running database migration to Supabase..."
+    python migrate_render_to_supabase.py || echo "⚠️  Migration failed or already completed"
+    echo ""
+fi
+
 echo "Press Ctrl+C to stop the server"
 echo ""
 
