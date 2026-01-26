@@ -170,9 +170,6 @@ def create_app():
                 if event.status == EventStatus.CANCELLED:
                     event.status_text = "Отменен"
                     event.status_class = "danger"
-                elif event.status == EventStatus.DRAFT:
-                    event.status_text = "Черновик"
-                    event.status_class = "secondary"
                 elif now < event.start_date:
                     # Event hasn't started yet
                     delta = event.start_date - now
