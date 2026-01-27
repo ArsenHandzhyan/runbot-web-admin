@@ -63,6 +63,127 @@
         </div>
     </div>
 
+    <!-- Settings + Test -->
+    <div class="row mb-4">
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-sliders-h"></i> Настройки AI Worker</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('ai_settings_update') }}">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">MIN_CONFIDENCE</label>
+                                <input type="number" step="0.01" min="0" max="1" name="min_confidence" class="form-control" value="{{ settings.min_confidence }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">MIN_POSE_DETECTION_RATE</label>
+                                <input type="number" step="0.01" min="0" max="1" name="min_pose_detection_rate" class="form-control" value="{{ settings.min_pose_detection_rate }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">MIN_VIDEO_DURATION (s)</label>
+                                <input type="number" step="1" min="1" name="min_video_duration" class="form-control" value="{{ settings.min_video_duration }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">FRAME_SKIP</label>
+                                <input type="number" step="1" min="1" name="frame_skip" class="form-control" value="{{ settings.frame_skip }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">POSE_VISIBILITY_MIN</label>
+                                <input type="number" step="0.01" min="0" max="1" name="pose_visibility_min" class="form-control" value="{{ settings.pose_visibility_min }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">ANGLE_SMOOTHING_ALPHA</label>
+                                <input type="number" step="0.05" min="0" max="1" name="angle_smoothing_alpha" class="form-control" value="{{ settings.angle_smoothing_alpha }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">PHASE_DEBOUNCE_FRAMES</label>
+                                <input type="number" step="1" min="1" name="phase_debounce_frames" class="form-control" value="{{ settings.phase_debounce_frames }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">PUSHUP_DOWN_THRESHOLD</label>
+                                <input type="number" step="1" min="30" max="170" name="pushup_down_threshold" class="form-control" value="{{ settings.pushup_down_threshold }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">PUSHUP_UP_THRESHOLD</label>
+                                <input type="number" step="1" min="120" max="180" name="pushup_up_threshold" class="form-control" value="{{ settings.pushup_up_threshold }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">SQUAT_DOWN_THRESHOLD</label>
+                                <input type="number" step="1" min="30" max="170" name="squat_down_threshold" class="form-control" value="{{ settings.squat_down_threshold }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">SQUAT_UP_THRESHOLD</label>
+                                <input type="number" step="1" min="120" max="180" name="squat_up_threshold" class="form-control" value="{{ settings.squat_up_threshold }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">MEDIAPIPE_MIN_DET_CONF</label>
+                                <input type="number" step="0.01" min="0" max="1" name="mediapipe_min_detection_confidence" class="form-control" value="{{ settings.mediapipe_min_detection_confidence }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">MEDIAPIPE_MIN_TRACK_CONF</label>
+                                <input type="number" step="0.01" min="0" max="1" name="mediapipe_min_tracking_confidence" class="form-control" value="{{ settings.mediapipe_min_tracking_confidence }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">MAX_PROCESSING_TIME (s)</label>
+                                <input type="number" step="1" min="30" name="max_processing_time" class="form-control" value="{{ settings.max_processing_time }}">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" type="submit">Сохранить настройки</button>
+                        <span class="text-muted ms-2">Изменения применятся при следующей обработке</span>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-vial"></i> Тестовый анализ</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('ai_test') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Тип упражнения</label>
+                            <select class="form-select" name="exercise_type">
+                                <option value="push_ups">Отжимания</option>
+                                <option value="squats">Приседания</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Видео файл</label>
+                            <input type="file" class="form-control" name="video" accept="video/*" required>
+                        </div>
+                        <button class="btn btn-success" type="submit">Запустить тест</button>
+                    </form>
+
+                    {% if test_error %}
+                        <div class="alert alert-danger mt-3">
+                            <strong>Ошибка:</strong> {{ test_error }}
+                        </div>
+                    {% endif %}
+
+                    {% if test_result %}
+                        <div class="alert alert-light mt-3">
+                            <div><strong>Статус:</strong> {{ test_result.status }}</div>
+                            <div><strong>Повторения:</strong> {{ test_result.detected_reps }}</div>
+                            <div><strong>Уверенность:</strong> {{ (test_result.confidence * 100)|round(1) }}%</div>
+                            <div><strong>Длительность:</strong> {{ test_result.duration_sec|round(1) }}с</div>
+                            <div><strong>Кадры:</strong> {{ test_result.frames_analyzed }}</div>
+                            <div><strong>Поза:</strong> {{ (test_result.pose_detection_rate * 100)|round(1) }}%</div>
+                            {% if test_result.quality_issues %}
+                                <div class="text-warning"><strong>Проблемы:</strong> {{ test_result.quality_issues }}</div>
+                            {% endif %}
+                            {% if test_result.error_message %}
+                                <div class="text-danger"><strong>Ошибка:</strong> {{ test_result.error_message }}</div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- AI Reports Table -->
     <div class="card">
         <div class="card-header">

@@ -139,6 +139,29 @@ class AIAnalysis(Base):
     # Relationships
     submission = relationship("Submission", back_populates="ai_analysis")
 
+class AIWorkerSettings(Base):
+    """AI worker settings stored in DB (single row)"""
+    __tablename__ = "ai_worker_settings"
+
+    id = Column(Integer, primary_key=True)
+
+    min_confidence = Column(Float, default=0.75)
+    min_pose_detection_rate = Column(Float, default=0.7)
+    min_video_duration = Column(Integer, default=8)
+    frame_skip = Column(Integer, default=1)
+    pose_visibility_min = Column(Float, default=0.5)
+    angle_smoothing_alpha = Column(Float, default=0.2)
+    phase_debounce_frames = Column(Integer, default=3)
+    pushup_down_threshold = Column(Float, default=90)
+    pushup_up_threshold = Column(Float, default=160)
+    squat_down_threshold = Column(Float, default=90)
+    squat_up_threshold = Column(Float, default=165)
+    mediapipe_min_detection_confidence = Column(Float, default=0.5)
+    mediapipe_min_tracking_confidence = Column(Float, default=0.5)
+    max_processing_time = Column(Integer, default=300)
+
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class ParticipantStats(Base):
     """Statistics model - calculated participant statistics"""
     __tablename__ = 'participant_stats'

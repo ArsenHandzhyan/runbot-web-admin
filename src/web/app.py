@@ -3,22 +3,24 @@ Web Admin Interface for RunBot
 Simple Flask-based admin panel for managing events, challenges and participants
 """
 
+import hashlib
+import logging
 import os
 import time
-import hashlib
 from collections import defaultdict
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
+from datetime import datetime, timedelta
 from functools import wraps
-import logging
-from sqlalchemy.orm import selectinload
+
+import requests
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 
 # Removed problematic import: from src.web.test_media import test_media_blueprint
 # This import was causing deployment failures on Render.com
-from datetime import datetime, timedelta
 
 from src.database.db import DatabaseManager
-from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, EventStatus, ChallengeRegistration, AIAnalysis, AIAnalysisStatus
+from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, EventStatus, ChallengeRegistration, AIAnalysis, AIAnalysisStatus, AIWorkerSettings
 from src.utils.event_manager import EventManager
 from src.utils.challenge_manager import ChallengeManager
 # NOTE: telebot import removed - web interface doesn't need bot functionality
@@ -27,7 +29,6 @@ from src.utils.challenge_manager import ChallengeManager
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-
 
 # Simple in-memory TTL cache (per process)
 _cache = {}
@@ -56,7 +57,6 @@ DASHBOARD_RECENT_LIMIT = int(os.getenv('DASHBOARD_RECENT_LIMIT', '5'))
 PARTICIPANTS_PER_PAGE = int(os.getenv('PARTICIPANTS_PER_PAGE', '50'))
 PARTICIPANTS_CACHE_TTL_SECONDS = int(os.getenv('PARTICIPANTS_CACHE_TTL_SECONDS', '30'))
 STATISTICS_CACHE_TTL_SECONDS = int(os.getenv('STATISTICS_CACHE_TTL_SECONDS', '30'))
-
 # Rate limiting для защиты от brute-force атак
 class RateLimiter:
     """Simple in-memory rate limiter for login attempts"""
@@ -1155,6 +1155,103 @@ def create_app():
         
         return redirect(url_for('admins'))
 
+    def _get_or_create_ai_settings(db):
+        settings = db.query(AIWorkerSettings).first()
+        if settings:
+            return settings
+        settings = AIWorkerSettings()
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+        return settings
+
+    @app.route('/ai-settings', methods=['POST'])
+    @login_required
+    def ai_settings_update():
+        db = db_manager.get_session()
+        try:
+            settings = _get_or_create_ai_settings(db)
+
+            field_map = {
+                "min_confidence": float,
+                "min_pose_detection_rate": float,
+                "min_video_duration": int,
+                "frame_skip": int,
+                "pose_visibility_min": float,
+                "angle_smoothing_alpha": float,
+                "phase_debounce_frames": int,
+                "pushup_down_threshold": float,
+                "pushup_up_threshold": float,
+                "squat_down_threshold": float,
+                "squat_up_threshold": float,
+                "mediapipe_min_detection_confidence": float,
+                "mediapipe_min_tracking_confidence": float,
+                "max_processing_time": int,
+            }
+
+            for field, cast in field_map.items():
+                raw_value = request.form.get(field)
+                if raw_value is None or raw_value == "":
+                    continue
+                try:
+                    setattr(settings, field, cast(raw_value))
+                except ValueError:
+                    flash(f"Некорректное значение для {field}", "error")
+                    return redirect(url_for('ai_reports'))
+
+            db.commit()
+            flash("Настройки AI Worker сохранены", "success")
+        except Exception as e:
+            db.rollback()
+            flash(f"Ошибка сохранения настроек: {str(e)}", "error")
+        finally:
+            db.close()
+
+        return redirect(url_for('ai_reports'))
+
+    @app.route('/ai-test', methods=['POST'])
+    @login_required
+    def ai_test():
+        worker_url = os.getenv("AI_WORKER_URL", "").strip()
+        api_key = os.getenv("AI_WORKER_API_KEY", "").strip()
+
+        if not worker_url:
+            flash("AI_WORKER_URL не задан", "error")
+            return redirect(url_for('ai_reports'))
+
+        video_file = request.files.get("video")
+        exercise_type = request.form.get("exercise_type", "push_ups")
+
+        if not video_file or video_file.filename == "":
+            flash("Выберите видео для теста", "error")
+            return redirect(url_for('ai_reports'))
+
+        try:
+            files = {
+                "video": (video_file.filename, video_file.stream, video_file.content_type or "video/mp4")
+            }
+            data = {"exercise_type": exercise_type}
+            headers = {}
+            if api_key:
+                headers["X-API-Key"] = api_key
+
+            response = requests.post(
+                worker_url.rstrip("/") + "/analyze-test",
+                files=files,
+                data=data,
+                headers=headers,
+                timeout=300
+            )
+
+            if response.ok:
+                session["ai_test_result"] = response.json()
+            else:
+                session["ai_test_error"] = f"{response.status_code}: {response.text}"
+        except Exception as e:
+            session["ai_test_error"] = str(e)
+
+        return redirect(url_for('ai_reports'))
+
     @app.route('/ai-reports')
     @login_required
     def ai_reports():
@@ -1190,9 +1287,16 @@ def create_app():
                     'challenge': challenge
                 })
 
+            settings = _get_or_create_ai_settings(db)
+            test_result = session.pop("ai_test_result", None)
+            test_error = session.pop("ai_test_error", None)
+
             return render_template('ai_reports.html',
                                  reports=reports,
                                  stats=stats,
+                                 settings=settings,
+                                 test_result=test_result,
+                                 test_error=test_error,
                                  AIAnalysisStatus=AIAnalysisStatus)
         finally:
             db.close()

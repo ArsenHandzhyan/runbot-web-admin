@@ -37,6 +37,8 @@ WEB_SECRET_KEY=ваш_секретный_ключ
 DATABASE_URL=postgresql://your-postgres-connection-string
 MEDIA_PATH=./media
 FLASK_DEBUG=False
+AI_WORKER_URL=https://your-ai-worker.onrender.com
+AI_WORKER_API_KEY=change_me
 ```
 
 ### 3. Запуск
