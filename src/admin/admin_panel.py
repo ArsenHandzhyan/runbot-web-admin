@@ -9,6 +9,8 @@ from typing import List, Optional
 import logging
 import io
 import re
+from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 
 from src.models.models import (
     Participant, Challenge, Submission, AdminAction, 
@@ -197,11 +199,20 @@ class AdminPanel:
 
             markup = telebot.types.InlineKeyboardMarkup()
 
+            event_ids = [e.id for e in events]
+            counts = {}
+            if event_ids:
+                rows = db.query(
+                    EventRegistration.event_id,
+                    func.count(EventRegistration.id)
+                ).filter(
+                    EventRegistration.event_id.in_(event_ids)
+                ).group_by(EventRegistration.event_id).all()
+                counts = {event_id: count for event_id, count in rows}
+
             for event in events:
                 # Count participants
-                participant_count = db.query(EventRegistration).filter(
-                    EventRegistration.event_id == event.id
-                ).count()
+                participant_count = counts.get(event.id, 0)
 
                 # Event type emoji
                 type_emoji = {
@@ -259,12 +270,22 @@ class AdminPanel:
 
             markup = telebot.types.InlineKeyboardMarkup()
 
+            # Prefetch unique participant counts per challenge
+            challenge_ids = [c.id for c in challenges]
+            counts = {}
+            if challenge_ids:
+                from src.models.models import Submission, Participant
+                rows = db.query(Submission.challenge_id, Participant.id).join(
+                    Participant, Participant.id == Submission.participant_id
+                ).filter(
+                    Submission.challenge_id.in_(challenge_ids)
+                ).distinct().all()
+                for challenge_id, _pid in rows:
+                    counts[challenge_id] = counts.get(challenge_id, 0) + 1
+
             for challenge in challenges:
                 # Count participants (unique participants with submissions)
-                from src.models.models import Submission, Participant
-                participant_count = db.query(Participant.id).join(Submission).filter(
-                    Submission.challenge_id == challenge.id
-                ).distinct().count()
+                participant_count = counts.get(challenge.id, 0)
 
                 # Challenge type emoji
                 type_emoji = {
@@ -1347,7 +1368,11 @@ class AdminPanel:
         """Show pending submissions for moderation"""
         db = self.db_manager.get_session()
         try:
-            pending_submissions = db.query(Submission).filter(
+            pending_submissions = db.query(Submission).options(
+                selectinload(Submission.participant),
+                selectinload(Submission.challenge),
+                selectinload(Submission.ai_analysis)
+            ).filter(
                 Submission.status == SubmissionStatus.PENDING
             ).order_by(Submission.submission_date.asc()).limit(10).all()
             
@@ -1356,8 +1381,8 @@ class AdminPanel:
                 return
             
             for submission in pending_submissions:
-                participant = db.query(Participant).get(submission.participant_id)
-                challenge = db.query(Challenge).get(submission.challenge_id)
+                participant = submission.participant
+                challenge = submission.challenge
 
                 # Send media file if exists
                 if submission.media_path:
@@ -1730,10 +1755,19 @@ class AdminPanel:
                     telebot.types.InlineKeyboardButton("📋 Все события", callback_data="export_all_events")
                 )
 
+                event_ids = [e.id for e in events[:15]]
+                counts = {}
+                if event_ids:
+                    rows = db.query(
+                        EventRegistration.event_id,
+                        func.count(EventRegistration.id)
+                    ).filter(
+                        EventRegistration.event_id.in_(event_ids)
+                    ).group_by(EventRegistration.event_id).all()
+                    counts = {event_id: count for event_id, count in rows}
+
                 for event in events[:15]:  # Limit to 15 events
-                    participant_count = db.query(EventRegistration).filter(
-                        EventRegistration.event_id == event.id
-                    ).count()
+                    participant_count = counts.get(event.id, 0)
 
                     type_emoji = {
                         EventType.RUN_EVENT: "🏃",
@@ -2007,12 +2041,21 @@ class AdminPanel:
             
             markup = telebot.types.InlineKeyboardMarkup()
             
+            event_ids = [e.id for e in events]
+            counts = {}
+            if event_ids:
+                rows = db.query(
+                    EventRegistration.event_id,
+                    func.count(EventRegistration.id)
+                ).filter(
+                    EventRegistration.event_id.in_(event_ids),
+                    EventRegistration.registration_status == SubmissionStatus.APPROVED
+                ).group_by(EventRegistration.event_id).all()
+                counts = {event_id: count for event_id, count in rows}
+
             for event in events:
                 # Count participants for this event
-                participant_count = db.query(EventRegistration).filter(
-                    EventRegistration.event_id == event.id,
-                    EventRegistration.registration_status == SubmissionStatus.APPROVED
-                ).count()
+                participant_count = counts.get(event.id, 0)
                 
                 # Format event type
                 event_type_display = {
@@ -2058,12 +2101,19 @@ class AdminPanel:
             
             markup = telebot.types.InlineKeyboardMarkup()
             
+            challenge_ids = [c.id for c in challenges]
+            counts = {}
+            if challenge_ids:
+                rows = db.query(Submission.challenge_id, Submission.status).filter(
+                    Submission.challenge_id.in_(challenge_ids),
+                    Submission.status.in_([SubmissionStatus.APPROVED, SubmissionStatus.PENDING])
+                ).all()
+                for challenge_id, _status in rows:
+                    counts[challenge_id] = counts.get(challenge_id, 0) + 1
+
             for challenge in challenges:
                 # Count participants for this challenge
-                participant_count = db.query(Submission).filter(
-                    Submission.challenge_id == challenge.id,
-                    Submission.status.in_([SubmissionStatus.APPROVED, SubmissionStatus.PENDING])
-                ).count()
+                participant_count = counts.get(challenge.id, 0)
                 
                 # Format challenge type
                 challenge_type_display = {

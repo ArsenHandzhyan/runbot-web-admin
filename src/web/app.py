@@ -4,13 +4,17 @@ Simple Flask-based admin panel for managing events, challenges and participants
 """
 
 import os
+import time
+import hashlib
+from collections import defaultdict
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
 from functools import wraps
 import logging
+from sqlalchemy.orm import selectinload
 
 # Removed problematic import: from src.web.test_media import test_media_blueprint
 # This import was causing deployment failures on Render.com
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.database.db import DatabaseManager
 from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, EventStatus, ChallengeRegistration, AIAnalysis, AIAnalysisStatus
@@ -19,8 +23,102 @@ from src.utils.challenge_manager import ChallengeManager
 # NOTE: telebot import removed - web interface doesn't need bot functionality
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+
+# Simple in-memory TTL cache (per process)
+_cache = {}
+
+
+def _cache_get(key):
+    item = _cache.get(key)
+    if not item:
+        return None
+    if time.time() - item['ts'] > item['ttl']:
+        _cache.pop(key, None)
+        return None
+    return item['value']
+
+
+def _cache_set(key, value, ttl):
+    _cache[key] = {'value': value, 'ttl': ttl, 'ts': time.time()}
+
+# Runtime tuning (env overrides, safe defaults)
+LOGIN_MAX_ATTEMPTS = int(os.getenv('LOGIN_MAX_ATTEMPTS', '5'))
+LOGIN_WINDOW_SECONDS = int(os.getenv('LOGIN_WINDOW_SECONDS', '300'))
+LOGIN_LOCKOUT_SECONDS = int(os.getenv('LOGIN_LOCKOUT_SECONDS', '900'))
+MODERATION_ALL_LIMIT = int(os.getenv('MODERATION_ALL_LIMIT', '50'))
+MODERATION_PENDING_LIMIT = int(os.getenv('MODERATION_PENDING_LIMIT', '0'))  # 0 = no limit
+DASHBOARD_RECENT_LIMIT = int(os.getenv('DASHBOARD_RECENT_LIMIT', '5'))
+PARTICIPANTS_PER_PAGE = int(os.getenv('PARTICIPANTS_PER_PAGE', '50'))
+PARTICIPANTS_CACHE_TTL_SECONDS = int(os.getenv('PARTICIPANTS_CACHE_TTL_SECONDS', '30'))
+STATISTICS_CACHE_TTL_SECONDS = int(os.getenv('STATISTICS_CACHE_TTL_SECONDS', '30'))
+
+# Rate limiting для защиты от brute-force атак
+class RateLimiter:
+    """Simple in-memory rate limiter for login attempts"""
+    def __init__(self, max_attempts=5, window_seconds=300, lockout_seconds=900):
+        self.max_attempts = max_attempts
+        self.window_seconds = window_seconds
+        self.lockout_seconds = lockout_seconds
+        self.attempts = defaultdict(list)  # IP -> list of timestamps
+        self.lockouts = {}  # IP -> lockout_until timestamp
+
+    def _get_client_ip(self, request):
+        """Get client IP, accounting for proxies"""
+        if request.headers.get('X-Forwarded-For'):
+            return request.headers.get('X-Forwarded-For').split(',')[0].strip()
+        return request.remote_addr or 'unknown'
+
+    def is_locked_out(self, request):
+        """Check if IP is currently locked out"""
+        ip = self._get_client_ip(request)
+        if ip in self.lockouts:
+            if time.time() < self.lockouts[ip]:
+                return True
+            else:
+                del self.lockouts[ip]
+        return False
+
+    def record_attempt(self, request, success=False):
+        """Record a login attempt"""
+        ip = self._get_client_ip(request)
+        now = time.time()
+
+        if success:
+            # Clear attempts on successful login
+            self.attempts[ip] = []
+            if ip in self.lockouts:
+                del self.lockouts[ip]
+            return
+
+        # Clean old attempts
+        self.attempts[ip] = [t for t in self.attempts[ip] if now - t < self.window_seconds]
+
+        # Record new attempt
+        self.attempts[ip].append(now)
+
+        # Check if we need to lockout
+        if len(self.attempts[ip]) >= self.max_attempts:
+            self.lockouts[ip] = now + self.lockout_seconds
+            logger.warning(f"IP {ip} locked out after {self.max_attempts} failed login attempts")
+
+    def get_remaining_lockout(self, request):
+        """Get remaining lockout time in seconds"""
+        ip = self._get_client_ip(request)
+        if ip in self.lockouts:
+            remaining = self.lockouts[ip] - time.time()
+            return max(0, int(remaining))
+        return 0
+
+# Global rate limiter instance
+login_rate_limiter = RateLimiter(
+    max_attempts=LOGIN_MAX_ATTEMPTS,
+    window_seconds=LOGIN_WINDOW_SECONDS,
+    lockout_seconds=LOGIN_LOCKOUT_SECONDS
+)
 
 def create_app():
     # Get the project root directory
@@ -29,13 +127,50 @@ def create_app():
     app = Flask(__name__,
                 template_folder=os.path.join(project_root, 'templates'),
                 static_folder=os.path.join(project_root, 'static'))
-    app.secret_key = os.getenv('WEB_SECRET_KEY', 'your-secret-key-change-in-production')
 
-    # Debug: Print database URL
-    db_url = os.getenv('DATABASE_URL', 'NOT_SET')
-    print(f"🔍 DEBUG: Using DATABASE_URL: {db_url[:50]}...")
+    # Секретный ключ - ОБЯЗАТЕЛЬНО из переменной окружения
+    secret_key = os.getenv('WEB_SECRET_KEY')
+    if not secret_key:
+        logger.warning("WEB_SECRET_KEY not set! Using fallback (NOT SECURE FOR PRODUCTION)")
+        secret_key = 'dev-only-change-in-production-' + str(hash(os.urandom(16)))
+    app.secret_key = secret_key
+
+    # CSRF Protection
+    app.config['WTF_CSRF_ENABLED'] = True
+    app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 час
+
+    # Secure session cookies
+    secure_env = os.getenv('SESSION_COOKIE_SECURE')
+    if secure_env is not None:
+        app.config['SESSION_COOKIE_SECURE'] = secure_env.lower() in ('1', 'true', 'yes')
+    else:
+        app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
+    session_minutes = int(os.getenv('SESSION_LIFETIME_MINUTES', '480'))
+    app.permanent_session_lifetime = timedelta(minutes=session_minutes)
+
+    # НЕ логируем DATABASE_URL - содержит пароль!
+    logger.info("Database connection configured")
+
+    # Initialize CSRF protection
+    try:
+        from flask_wtf.csrf import CSRFProtect
+        csrf = CSRFProtect(app)
+        logger.info("CSRF protection enabled")
+    except ImportError:
+        logger.warning("Flask-WTF not installed, CSRF protection disabled")
+        csrf = None
 
     # Initialize managers
+    # Security headers
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        return response
+
     db_manager = DatabaseManager()
     # NOTE: Web interface doesn't need bot instance - only database access
     # bot = telebot.TeleBot(os.getenv('TELEGRAM_BOT_TOKEN'))  # REMOVED - causes conflicts
@@ -71,6 +206,11 @@ def create_app():
         """Main dashboard"""
         db = db_manager.get_session()
         try:
+            cache_ttl = int(os.getenv('DASHBOARD_CACHE_TTL_SECONDS', '30'))
+            cached = _cache_get('dashboard')
+            if cached:
+                return render_template('dashboard.html', **cached)
+
             # Get counts for dashboard
             participants_count = db.query(Participant).filter(Participant.is_active == True).count()
             events_count = db.query(Event).filter(Event.is_active == True).count()
@@ -79,19 +219,23 @@ def create_app():
             pending_submissions_count = db.query(Submission).filter(
                 Submission.status == SubmissionStatus.PENDING
             ).count()
-            
+
             # Get recent activity
-            recent_events = db.query(Event).filter(Event.is_active == True).order_by(Event.created_at.desc()).limit(5).all()
-            recent_challenges = db.query(Challenge).filter(Challenge.is_active == True).order_by(Challenge.created_at.desc()).limit(5).all()
-            
-            return render_template('dashboard.html',
-                                 participants_count=participants_count,
-                                 events_count=events_count,
-                                 challenges_count=challenges_count,
-                                 submissions_count=submissions_count,
-                                 pending_submissions_count=pending_submissions_count,
-                                 recent_events=recent_events,
-                                 recent_challenges=recent_challenges)
+            recent_events = db.query(Event).filter(Event.is_active == True).order_by(Event.created_at.desc()).limit(DASHBOARD_RECENT_LIMIT).all()
+            recent_challenges = db.query(Challenge).filter(Challenge.is_active == True).order_by(Challenge.created_at.desc()).limit(DASHBOARD_RECENT_LIMIT).all()
+
+            context = {
+                'participants_count': participants_count,
+                'events_count': events_count,
+                'challenges_count': challenges_count,
+                'submissions_count': submissions_count,
+                'pending_submissions_count': pending_submissions_count,
+                'recent_events': recent_events,
+                'recent_challenges': recent_challenges
+            }
+            _cache_set('dashboard', context, cache_ttl)
+
+            return render_template('dashboard.html', **context)
         finally:
             db.close()
     
@@ -99,27 +243,27 @@ def create_app():
     @login_required
     def serve_media(filename):
         """Serve media files from media directory or redirect to R2"""
-        logger.info("serve_media: received filename=%s", filename)
-        logger.info("serve_media: starts with https://? %s", filename.startswith('https://'))
-        logger.info("serve_media: length of filename: %d", len(filename))
+        logger.debug("serve_media: received filename=%s", filename)
+        logger.debug("serve_media: starts with https://? %s", filename.startswith('https://'))
+        logger.debug("serve_media: length of filename: %d", len(filename))
 
         # Clean filename - remove any leading path components
         if '/' in filename:
             filename = filename.split('/')[-1]
-            logger.info("serve_media: cleaned filename to: %s", filename)
+            logger.debug("serve_media: cleaned filename to: %s", filename)
 
         # Check if filename is an R2 URL (starts with https://)
         if filename.startswith('https://'):
-            logger.info("serve_media: REDIRECTING to R2 URL: %s", filename)
+            logger.debug("serve_media: REDIRECTING to R2 URL: %s", filename)
             return redirect(filename)
         else:
-            logger.info("serve_media: SERVING LOCALLY - filename does not start with https://")
+            logger.debug("serve_media: SERVING LOCALLY - filename does not start with https://")
 
         # Compute project root reliably and serve media from there
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         media_path = os.path.join(repo_root, 'media')
         file_path = os.path.join(media_path, filename)
-        logger.info("serve_media: filename=%s, media_path=%s, exists=%s", filename, media_path, os.path.exists(file_path))
+        logger.debug("serve_media: filename=%s, media_path=%s, exists=%s", filename, media_path, os.path.exists(file_path))
 
         try:
             return send_from_directory(media_path, filename)
@@ -129,23 +273,43 @@ def create_app():
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
-        """Admin login"""
+        """Admin login with rate limiting protection"""
+        # Check if IP is locked out
+        if login_rate_limiter.is_locked_out(request):
+            remaining = login_rate_limiter.get_remaining_lockout(request)
+            flash(f'Слишком много неудачных попыток. Попробуйте через {remaining // 60} мин.', 'error')
+            logger.warning(f"Blocked login attempt from locked out IP")
+            return render_template('login.html'), 429
+
         if request.method == 'POST':
-            username = request.form['username']
-            password = request.form['password']
-            
-            # Simple auth check (in production use proper auth system)
-            admin_username = os.getenv('ADMIN_USERNAME', 'admin')
-            admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
-            
-            if username == admin_username and password == admin_password:
+            username = request.form.get('username', '')
+            password = request.form.get('password', '')
+
+            # Получить учётные данные из переменных окружения (без дефолтов для безопасности)
+            admin_username = os.getenv('ADMIN_USERNAME')
+            admin_password = os.getenv('ADMIN_PASSWORD')
+
+            if not admin_username or not admin_password:
+                logger.error("ADMIN_USERNAME or ADMIN_PASSWORD not configured!")
+                flash('Ошибка конфигурации сервера', 'error')
+                return render_template('login.html'), 500
+
+            # Constant-time comparison to prevent timing attacks
+            username_match = hashlib.sha256(username.encode()).hexdigest() == hashlib.sha256(admin_username.encode()).hexdigest()
+            password_match = hashlib.sha256(password.encode()).hexdigest() == hashlib.sha256(admin_password.encode()).hexdigest()
+
+            if username_match and password_match:
+                login_rate_limiter.record_attempt(request, success=True)
                 session['admin_logged_in'] = True
                 session['admin_username'] = username
+                logger.info(f"Successful login for user: {username}")
                 flash('Успешный вход в систему!', 'success')
                 return redirect(url_for('index'))
             else:
+                login_rate_limiter.record_attempt(request, success=False)
+                logger.warning(f"Failed login attempt for username: {username}")
                 flash('Неверное имя пользователя или пароль', 'error')
-        
+
         return render_template('login.html')
     
     @app.route('/logout')
@@ -302,26 +466,40 @@ def create_app():
     @login_required
     def challenges():
         """Manage challenges"""
+        from sqlalchemy import func
         db = db_manager.get_session()
         try:
-            # Get all challenges
-            challenges_list = db.query(Challenge).order_by(Challenge.created_at.desc()).all()
+            # ОПТИМИЗАЦИЯ: Получить все челленджи с подсчётами за один запрос вместо N+1
+            # Subquery для подсчёта участников
+            participant_counts = db.query(
+                ChallengeRegistration.challenge_id,
+                func.count(ChallengeRegistration.id).label('participant_count')
+            ).filter(
+                ChallengeRegistration.is_active == True
+            ).group_by(ChallengeRegistration.challenge_id).subquery()
+
+            # Subquery для подсчёта отправок
+            submission_counts = db.query(
+                Submission.challenge_id,
+                func.count(Submission.id).label('submission_count')
+            ).group_by(Submission.challenge_id).subquery()
+
+            # Основной запрос с LEFT JOIN
+            challenges_list = db.query(
+                Challenge,
+                func.coalesce(participant_counts.c.participant_count, 0).label('participant_count'),
+                func.coalesce(submission_counts.c.submission_count, 0).label('submission_count')
+            ).outerjoin(
+                participant_counts, Challenge.id == participant_counts.c.challenge_id
+            ).outerjoin(
+                submission_counts, Challenge.id == submission_counts.c.challenge_id
+            ).order_by(Challenge.created_at.desc()).all()
 
             # Add participant and submission counts to each challenge
             challenges_with_counts = []
             now = datetime.now()
 
-            for challenge in challenges_list:
-                # Count participants
-                participant_count = db.query(ChallengeRegistration).filter(
-                    ChallengeRegistration.challenge_id == challenge.id,
-                    ChallengeRegistration.is_active == True
-                ).count()
-
-                # Count submissions
-                submission_count = db.query(Submission).filter(
-                    Submission.challenge_id == challenge.id
-                ).count()
+            for challenge, participant_count, submission_count in challenges_list:
 
                 # Calculate challenge status
                 if not challenge.is_active:
@@ -490,16 +668,17 @@ def create_app():
                 return redirect(url_for('challenges'))
             
             # Get all submissions for this challenge
-            submissions = db.query(Submission).filter(
+            submissions = db.query(Submission).options(
+                selectinload(Submission.participant),
+                selectinload(Submission.ai_analysis)
+            ).filter(
                 Submission.challenge_id == challenge_id
             ).order_by(Submission.submission_date.desc()).all()
             
             # Get participant info for each submission and prepare data for template
             submissions_with_participants = []
             for submission in submissions:
-                participant = db.query(Participant).filter(
-                    Participant.id == submission.participant_id
-                ).first()
+                participant = submission.participant
                 
                 # Convert enum status to lowercase string for template comparison
                 # Handle different enum representations
@@ -518,16 +697,11 @@ def create_app():
                     else:
                         status_value = status_str.lower()
                 
-                # Get AI analysis if exists
-                ai_analysis = db.query(AIAnalysis).filter(
-                    AIAnalysis.submission_id == submission.id
-                ).first()
-
                 submissions_with_participants.append({
                     'submission': submission,
                     'participant': participant,
                     'status_value': status_value,
-                    'ai_analysis': ai_analysis
+                    'ai_analysis': submission.ai_analysis
                 })
             
             return render_template('challenge_submissions.html', 
@@ -545,12 +719,23 @@ def create_app():
         try:
             try:
                 # Get pending submissions
-                pending_submissions = db.query(Submission).filter(
+                pending_query = db.query(Submission).options(
+                    selectinload(Submission.participant),
+                    selectinload(Submission.challenge),
+                    selectinload(Submission.ai_analysis)
+                ).filter(
                     Submission.status == SubmissionStatus.PENDING
-                ).order_by(Submission.submission_date.asc()).all()
+                ).order_by(Submission.submission_date.asc())
+                if MODERATION_PENDING_LIMIT > 0:
+                    pending_query = pending_query.limit(MODERATION_PENDING_LIMIT)
+                pending_submissions = pending_query.all()
 
                 # Get all submissions (for overview)
-                all_submissions = db.query(Submission).order_by(Submission.submission_date.desc()).limit(50).all()
+                all_submissions = db.query(Submission).options(
+                    selectinload(Submission.participant),
+                    selectinload(Submission.challenge),
+                    selectinload(Submission.ai_analysis)
+                ).order_by(Submission.submission_date.desc()).limit(MODERATION_ALL_LIMIT).all()
             except Exception as e:
                 # Log and render with empty data to avoid 500 on UI
                 logger.exception("Ошибка при загрузке данных модерации: %s", e)
@@ -562,33 +747,19 @@ def create_app():
             all_with_details = []
 
             for submission in pending_submissions:
-                participant = db.query(Participant).filter(
-                    Participant.id == submission.participant_id
-                ).first()
-                challenge = db.query(Challenge).filter(
-                    Challenge.id == submission.challenge_id
-                ).first()
-                ai_analysis = db.query(AIAnalysis).filter(
-                    AIAnalysis.submission_id == submission.id
-                ).first()
+                participant = submission.participant
+                challenge = submission.challenge
 
                 pending_with_details.append({
                     'submission': submission,
                     'participant': participant,
                     'challenge': challenge,
-                    'ai_analysis': ai_analysis
+                    'ai_analysis': submission.ai_analysis
                 })
 
             for submission in all_submissions:
-                participant = db.query(Participant).filter(
-                    Participant.id == submission.participant_id
-                ).first()
-                challenge = db.query(Challenge).filter(
-                    Challenge.id == submission.challenge_id
-                ).first()
-                ai_analysis = db.query(AIAnalysis).filter(
-                    AIAnalysis.submission_id == submission.id
-                ).first()
+                participant = submission.participant
+                challenge = submission.challenge
 
                 # Convert status for template
                 if hasattr(submission.status, 'value'):
@@ -607,7 +778,7 @@ def create_app():
                     'participant': participant,
                     'challenge': challenge,
                     'status_value': status_value,
-                    'ai_analysis': ai_analysis
+                    'ai_analysis': submission.ai_analysis
                 })
 
             return render_template('moderation.html',
@@ -716,10 +887,30 @@ def create_app():
     @login_required
     def participants():
         """View participants"""
+        page = int(request.args.get('page', '1'))
+        per_page = int(request.args.get('per_page', PARTICIPANTS_PER_PAGE))
+        if page < 1:
+            page = 1
+        if per_page < 1:
+            per_page = PARTICIPANTS_PER_PAGE
+
+        cache_key = f"participants:{page}:{per_page}"
+        cached = _cache_get(cache_key)
+        if cached:
+            return render_template('participants.html', **cached)
+
         db = db_manager.get_session()
         try:
-            participants_list = db.query(Participant).order_by(Participant.registration_date.desc()).all()
-            return render_template('participants.html', participants=participants_list)
+            total = db.query(Participant).count()
+            participants_list = db.query(Participant).order_by(Participant.registration_date.desc()).limit(per_page).offset((page - 1) * per_page).all()
+            context = {
+                'participants': participants_list,
+                'page': page,
+                'per_page': per_page,
+                'total': total
+            }
+            _cache_set(cache_key, context, PARTICIPANTS_CACHE_TTL_SECONDS)
+            return render_template('participants.html', **context)
         finally:
             db.close()
     
@@ -727,24 +918,32 @@ def create_app():
     @login_required
     def statistics():
         """View statistics"""
+        cached = _cache_get('statistics')
+        if cached:
+            return render_template('statistics.html', **cached)
+
         db = db_manager.get_session()
         try:
             # Get various statistics
             total_participants = db.query(Participant).filter(Participant.is_active == True).count()
             total_events = db.query(Event).filter(Event.is_active == True).count()
             total_challenges = db.query(Challenge).filter(Challenge.is_active == True).count()
-            
-            # Submissions by status
-            submissions_by_status = {}
-            for status in SubmissionStatus:
-                count = db.query(Submission).filter(Submission.status == status).count()
-                submissions_by_status[status.value] = count
-            
-            return render_template('statistics.html',
-                                 total_participants=total_participants,
-                                 total_events=total_events,
-                                 total_challenges=total_challenges,
-                                 submissions_by_status=submissions_by_status)
+
+            # Submissions by status (single grouped query)
+            submissions_by_status = {s.value: 0 for s in SubmissionStatus}
+            rows = db.query(Submission.status, func.count(Submission.id)).group_by(Submission.status).all()
+            for status, count in rows:
+                key = status.value if hasattr(status, 'value') else str(status)
+                submissions_by_status[key] = count
+
+            context = {
+                'total_participants': total_participants,
+                'total_events': total_events,
+                'total_challenges': total_challenges,
+                'submissions_by_status': submissions_by_status
+            }
+            _cache_set('statistics', context, STATISTICS_CACHE_TTL_SECONDS)
+            return render_template('statistics.html', **context)
         finally:
             db.close()
     
@@ -759,16 +958,8 @@ def create_app():
         finally:
             db.close()
 
-    @app.route('/debug-env')
-    def debug_env():
-        """Debug environment variables"""
-        return f"""
-        <h1>Environment Debug</h1>
-        <p>DATABASE_URL: {os.getenv('DATABASE_URL', 'NOT_SET')}</p>
-        <p>PORT: {os.getenv('PORT', 'NOT_SET')}</p>
-        <p>FLASK_DEBUG: {os.getenv('FLASK_DEBUG', 'NOT_SET')}</p>
-        <p>Current working dir: {os.getcwd()}</p>
-        """
+    # УДАЛЕНО: /debug-env endpoint - раскрывал чувствительные данные (DATABASE_URL)
+    # Если нужна отладка, используйте логирование или защищённый admin endpoint
 
     @app.route('/get-file-url')
     @login_required
@@ -783,9 +974,9 @@ def create_app():
                 return {'error': 'Путь к файлу не указан'}, 400
 
             storage = get_storage_manager()
-            logger.info(f"get_file_url: file_path={file_path}, storage_type={storage.storage_type}")
+            logger.debug(f"get_file_url: file_path={file_path}, storage_type={storage.storage_type}")
             url = storage.get_file_url(file_path)
-            logger.info(f"get_file_url: generated url={url}")
+            logger.debug(f"get_file_url: generated url={url}")
             if url:
                 return {'url': url}, 200
             else:
@@ -798,6 +989,8 @@ def create_app():
     @login_required
     def debug_media(submission_id):
         """Debug media for a specific submission"""
+        if os.getenv('ENABLE_DEBUG_ENDPOINTS', 'false').lower() not in ('1', 'true', 'yes'):
+            return 'Not Found', 404
         db = db_manager.get_session()
         try:
             submission = db.query(Submission).get(submission_id)
@@ -990,7 +1183,7 @@ def create_app():
             reports = []
             for ai_analysis, submission, participant, challenge in analyses:
                 reports.append({
-                    'ai_analysis': ai_analysis,
+                    'ai_analysis': submission.ai_analysis,
                     'submission': submission,
                     'participant': participant,
                     'challenge': challenge
@@ -1007,4 +1200,6 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(host='0.0.0.0', port=int(os.getenv('WEB_PORT', 5000)), debug=True)
+    port = int(os.getenv('PORT', os.getenv('WEB_PORT', '5000')))
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=port, debug=debug)

@@ -47,6 +47,7 @@
                         {% endwith %}
 
                         <form method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <div class="mb-3">
                                 <label for="username" class="form-label">Имя пользователя</label>
                                 <div class="input-group">
@@ -71,11 +72,11 @@
                         </form>
                         
                         <hr class="my-4">
-                        
+
                         <div class="text-center text-muted">
                             <small>
-                                <i class="fas fa-info-circle"></i> 
-                                По умолчанию: admin / admin123
+                                <i class="fas fa-info-circle"></i>
+                                Учётные данные задаются через переменные окружения
                             </small>
                         </div>
                     </div>

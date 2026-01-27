@@ -20,14 +20,6 @@ except ImportError:
 class StorageManager:
     """Управление файлами с поддержкой Cloudflare R2 и Render Disk"""
 
-    # Default R2 configuration (hardcoded for production use)
-    DEFAULT_R2_CONFIG = {
-        'account_id': '5075df75a40c529b865d4688f9180d7a',
-        'access_key': 'ff88cca783fc232cbb4dcf3907d17ce5',
-        'secret_key': '5fa2e2085000c8e65d95ede90c213d14ae282b07b1656148c14d148704f3e68c',
-        'bucket': 'runbot-media'
-    }
-
     def __init__(self):
         # Default to R2 storage for production
         self.storage_type = os.getenv('STORAGE_TYPE', 'r2')
@@ -43,11 +35,11 @@ class StorageManager:
         }
 
         if self.storage_type == 'r2' and BOTO3_AVAILABLE:
-            # Настройка R2 - использовать переменные окружения или дефолтные значения
-            account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID', self.DEFAULT_R2_CONFIG['account_id'])
-            access_key = os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID', self.DEFAULT_R2_CONFIG['access_key'])
-            secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY', self.DEFAULT_R2_CONFIG['secret_key'])
-            self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET', self.DEFAULT_R2_CONFIG['bucket'])
+            # Настройка R2 - ТОЛЬКО из переменных окружения (без fallback для безопасности)
+            account_id = os.getenv('CLOUDFLARE_R2_ACCOUNT_ID')
+            access_key = os.getenv('CLOUDFLARE_R2_ACCESS_KEY_ID')
+            secret_key = os.getenv('CLOUDFLARE_R2_SECRET_ACCESS_KEY')
+            self.bucket = os.getenv('CLOUDFLARE_R2_BUCKET', 'runbot-media')
 
             logger.info(f"R2 credential check: account_id={'SET' if account_id else 'NOT SET'}, access_key={'SET' if access_key else 'NOT SET'}, secret_key={'SET' if secret_key else 'NOT SET'}")
 

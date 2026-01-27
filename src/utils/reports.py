@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from io import BytesIO
+from sqlalchemy import func
 
 from src.models.models import (
     Participant, Challenge, Submission, ParticipantStats,
@@ -269,29 +270,26 @@ class ReportGenerator:
         try:
             # Get daily activity data
             daily_stats = []
-            
+
+            rows = db.query(
+                func.date(Submission.submission_date).label('day'),
+                func.count(Submission.id),
+                func.count(func.distinct(Submission.participant_id))
+            ).filter(
+                Submission.submission_date >= start_date,
+                Submission.submission_date < end_date,
+                Submission.status == SubmissionStatus.APPROVED
+            ).group_by(func.date(Submission.submission_date)).all()
+
+            stats_by_day = {row.day: {'submissions': row[1], 'participants': row[2]} for row in rows}
+
             for i in range(days):
-                day = start_date + timedelta(days=i)
-                next_day = day + timedelta(days=1)
-                
-                # Count submissions for this day
-                submissions_count = db.query(Submission).filter(
-                    Submission.submission_date >= day,
-                    Submission.submission_date < next_day,
-                    Submission.status == SubmissionStatus.APPROVED
-                ).count()
-                
-                # Count unique participants
-                unique_participants = db.query(Submission.participant_id).filter(
-                    Submission.submission_date >= day,
-                    Submission.submission_date < next_day,
-                    Submission.status == SubmissionStatus.APPROVED
-                ).distinct().count()
-                
+                day = (start_date + timedelta(days=i)).date()
+                stats = stats_by_day.get(day, {'submissions': 0, 'participants': 0})
                 daily_stats.append({
                     'date': day.strftime('%d.%m.%Y'),
-                    'submissions': submissions_count,
-                    'participants': unique_participants
+                    'submissions': stats['submissions'],
+                    'participants': stats['participants']
                 })
             
             # Convert to DataFrame
@@ -337,26 +335,36 @@ class ReportGenerator:
             challenges_data = []
             
             challenges = db.query(Challenge).all()
-            for challenge in challenges:
-                # Get submissions for this challenge
+
+            # Prefetch approved submissions for all challenges
+            challenge_ids = [c.id for c in challenges]
+            submissions = []
+            if challenge_ids:
                 submissions = db.query(Submission).filter(
-                    Submission.challenge_id == challenge.id,
+                    Submission.challenge_id.in_(challenge_ids),
                     Submission.status == SubmissionStatus.APPROVED
                 ).all()
-                
-                if submissions:
-                    total_results = [s.result_value for s in submissions if s.result_value]
+
+            submissions_by_challenge = {}
+            for s in submissions:
+                submissions_by_challenge.setdefault(s.challenge_id, []).append(s)
+
+            for challenge in challenges:
+                challenge_submissions = submissions_by_challenge.get(challenge.id, [])
+
+                if challenge_submissions:
+                    total_results = [s.result_value for s in challenge_submissions if s.result_value]
                     avg_result = sum(total_results) / len(total_results) if total_results else 0
                     max_result = max(total_results) if total_results else 0
-                    
+
                     challenges_data.append({
                         'Название': challenge.name,
                         'Тип': self._translate_challenge_type(challenge.challenge_type),
                         'Активен': 'Да' if challenge.is_active else 'Нет',
-                        'Отчетов': len(submissions),
+                        'Отчетов': len(challenge_submissions),
                         'Средний результат': round(avg_result, 2),
                         'Максимальный результат': max_result,
-                        'Единица измерения': submissions[0].result_unit if submissions else ''
+                        'Единица измерения': challenge_submissions[0].result_unit if challenge_submissions else ''
                     })
             
             # Convert to DataFrame
@@ -503,15 +511,23 @@ class ReportGenerator:
 
             # Get submission statistics for each participant
             detailed_data = []
-            for participant in participants_data:
+            participant_ids = [p.id for p in participants_data]
+            submissions = []
+            if participant_ids:
                 submissions = db.query(Submission).filter(
-                    Submission.participant_id == participant.id,
+                    Submission.participant_id.in_(participant_ids),
                     Submission.challenge_id == challenge_id
                 ).all()
 
-                total_submissions = len(submissions)
-                approved_submissions = sum(1 for s in submissions if s.status == SubmissionStatus.APPROVED)
-                best_result = max([s.result_value for s in submissions if s.result_value], default=0)
+            submissions_by_participant = {}
+            for s in submissions:
+                submissions_by_participant.setdefault(s.participant_id, []).append(s)
+
+            for participant in participants_data:
+                participant_subs = submissions_by_participant.get(participant.id, [])
+                total_submissions = len(participant_subs)
+                approved_submissions = sum(1 for s in participant_subs if s.status == SubmissionStatus.APPROVED)
+                best_result = max([s.result_value for s in participant_subs if s.result_value], default=0)
 
                 detailed_data.append({
                     'ID': participant.id,
@@ -599,25 +615,33 @@ class ReportGenerator:
                     return output
 
                 # Summary sheet with all events
+                event_ids = [e.id for e in events]
+                registration_rows = []
+                if event_ids:
+                    registration_rows = db.query(
+                        EventRegistration.event_id,
+                        Participant.distance_type
+                    ).join(
+                        Participant, EventRegistration.participant_id == Participant.id
+                    ).filter(
+                        EventRegistration.event_id.in_(event_ids)
+                    ).all()
+
+                counts = {}
+                adult_counts = {}
+                children_counts = {}
+                for event_id, distance_type in registration_rows:
+                    counts[event_id] = counts.get(event_id, 0) + 1
+                    if distance_type == DistanceType.ADULT_RUN:
+                        adult_counts[event_id] = adult_counts.get(event_id, 0) + 1
+                    elif distance_type == DistanceType.CHILDREN_RUN:
+                        children_counts[event_id] = children_counts.get(event_id, 0) + 1
+
                 events_summary = []
                 for event in events:
-                    participant_count = db.query(EventRegistration).filter(
-                        EventRegistration.event_id == event.id
-                    ).count()
-
-                    adult_count = db.query(EventRegistration).join(
-                        Participant, EventRegistration.participant_id == Participant.id
-                    ).filter(
-                        EventRegistration.event_id == event.id,
-                        Participant.distance_type == DistanceType.ADULT_RUN
-                    ).count()
-
-                    children_count = db.query(EventRegistration).join(
-                        Participant, EventRegistration.participant_id == Participant.id
-                    ).filter(
-                        EventRegistration.event_id == event.id,
-                        Participant.distance_type == DistanceType.CHILDREN_RUN
-                    ).count()
+                    participant_count = counts.get(event.id, 0)
+                    adult_count = adult_counts.get(event.id, 0)
+                    children_count = children_counts.get(event.id, 0)
 
                     events_summary.append({
                         'ID': event.id,
@@ -634,21 +658,33 @@ class ReportGenerator:
                 summary_df.to_excel(writer, sheet_name='Все события', index=False)
 
                 # Individual sheets for each event (limit to first 10 events)
-                for event in events[:10]:
-                    participants_data = db.query(
+                top_events = events[:10]
+                top_event_ids = [e.id for e in top_events]
+                rows = []
+                if top_event_ids:
+                    rows = db.query(
+                        EventRegistration.event_id,
                         Participant.full_name,
                         Participant.phone,
                         Participant.start_number,
                         Participant.distance_type,
                         EventRegistration.registration_date
-                    ).join(EventRegistration, Participant.id == EventRegistration.participant_id).filter(
-                        EventRegistration.event_id == event.id
+                    ).join(Participant, Participant.id == EventRegistration.participant_id).filter(
+                        EventRegistration.event_id.in_(top_event_ids)
                     ).all()
+
+                by_event = {}
+                for row in rows:
+                    by_event.setdefault(row.event_id, []).append(row)
+
+                for event in top_events:
+                    participants_data = by_event.get(event.id, [])
 
                     if participants_data:
                         df = pd.DataFrame(participants_data, columns=[
-                            'ФИО', 'Телефон', 'Стартовый номер', 'Дистанция', 'Дата регистрации'
+                            'event_id', 'ФИО', 'Телефон', 'Стартовый номер', 'Дистанция', 'Дата регистрации'
                         ])
+                        df = df.drop(columns=['event_id'])
 
                         df['Дистанция'] = df['Дистанция'].map({
                             'adult_run': 'Взрослая',
@@ -724,40 +760,49 @@ class ReportGenerator:
                 summary_df.to_excel(writer, sheet_name='Все челленджи', index=False)
 
                 # Individual sheets for each challenge (limit to first 10 challenges)
-                for challenge in challenges[:10]:
-                    participants_data = db.query(
+                top_challenges = challenges[:10]
+                top_ids = [c.id for c in top_challenges]
+                rows = []
+                if top_ids:
+                    rows = db.query(
+                        Submission.challenge_id,
+                        Participant.id,
                         Participant.full_name,
                         Participant.phone,
                         Participant.start_number,
-                        Participant.distance_type
-                    ).join(Submission, Participant.id == Submission.participant_id).filter(
-                        Submission.challenge_id == challenge.id
-                    ).distinct().all()
+                        Participant.distance_type,
+                        Submission.status,
+                        Submission.result_value
+                    ).join(Participant, Participant.id == Submission.participant_id).filter(
+                        Submission.challenge_id.in_(top_ids)
+                    ).all()
 
-                    if participants_data:
-                        # Get detailed stats for each participant
-                        detailed_data = []
-                        for p in participants_data:
-                            submissions = db.query(Submission).join(Participant).filter(
-                                Participant.full_name == p.full_name,
-                                Submission.challenge_id == challenge.id
-                            ).all()
+                by_challenge = {}
+                for row in rows:
+                    by_challenge.setdefault(row.challenge_id, []).append(row)
 
-                            total = len(submissions)
-                            approved = sum(1 for s in submissions if s.status == SubmissionStatus.APPROVED)
-                            best = max([s.result_value for s in submissions if s.result_value], default=0)
-
-                            detailed_data.append({
-                                'ФИО': p.full_name,
-                                'Телефон': p.phone,
-                                'Стартовый номер': p.start_number,
-                                'Дистанция': 'Взрослая' if p.distance_type == 'adult_run' else 'Детская',
-                                'Отчётов': total,
-                                'Одобрено': approved,
-                                'Лучший результат': best
+                for challenge in top_challenges:
+                    rows_for_challenge = by_challenge.get(challenge.id, [])
+                    if rows_for_challenge:
+                        stats_by_participant = {}
+                        for row in rows_for_challenge:
+                            key = row.id
+                            entry = stats_by_participant.setdefault(key, {
+                                'ФИО': row.full_name,
+                                'Телефон': row.phone,
+                                'Стартовый номер': row.start_number,
+                                'Дистанция': 'Взрослая' if row.distance_type == 'adult_run' else 'Детская',
+                                'Отчётов': 0,
+                                'Одобрено': 0,
+                                'Лучший результат': 0
                             })
+                            entry['Отчётов'] += 1
+                            if row.status == SubmissionStatus.APPROVED:
+                                entry['Одобрено'] += 1
+                            if row.result_value and row.result_value > entry['Лучший результат']:
+                                entry['Лучший результат'] = row.result_value
 
-                        df = pd.DataFrame(detailed_data)
+                        df = pd.DataFrame(list(stats_by_participant.values()))
 
                         # Truncate sheet name to 31 characters (Excel limit)
                         sheet_name = challenge.name[:28] + '...' if len(challenge.name) > 28 else challenge.name

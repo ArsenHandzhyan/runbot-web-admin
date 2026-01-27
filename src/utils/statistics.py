@@ -246,8 +246,13 @@ class StatisticsEngine:
             
             # Group by challenge type
             challenge_stats = defaultdict(lambda: {'count': 0, 'total_score': 0})
+            challenge_ids = {s.challenge_id for s in submissions}
+            challenges = {}
+            if challenge_ids:
+                rows = db.query(Challenge).filter(Challenge.id.in_(challenge_ids)).all()
+                challenges = {c.id: c for c in rows}
             for sub in submissions:
-                challenge = db.query(Challenge).get(sub.challenge_id)
+                challenge = challenges.get(sub.challenge_id)
                 if challenge:
                     challenge_stats[challenge.challenge_type.value]['count'] += 1
                     challenge_stats[challenge.challenge_type.value]['total_score'] += sub.result_value or 0
@@ -287,8 +292,13 @@ class StatisticsEngine:
             
             # Group by challenge type
             challenge_stats = defaultdict(list)
+            challenge_ids = {s.challenge_id for s in submissions}
+            challenges = {}
+            if challenge_ids:
+                rows = db.query(Challenge).filter(Challenge.id.in_(challenge_ids)).all()
+                challenges = {c.id: c for c in rows}
             for sub in submissions:
-                challenge = db.query(Challenge).get(sub.challenge_id)
+                challenge = challenges.get(sub.challenge_id)
                 if challenge:
                     challenge_stats[challenge.challenge_type.value].append({
                         'date': sub.submission_date.strftime('%d.%m.%Y'),
