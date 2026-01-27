@@ -74,59 +74,59 @@
                     <form method="POST" action="{{ url_for('ai_settings_update') }}">
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">MIN_CONFIDENCE</label>
+                                <label class="form-label">Мин. уверенность</label>
                                 <input type="number" step="0.01" min="0" max="1" name="min_confidence" class="form-control" value="{{ settings.min_confidence }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">MIN_POSE_DETECTION_RATE</label>
+                                <label class="form-label">Мин. детекция позы</label>
                                 <input type="number" step="0.01" min="0" max="1" name="min_pose_detection_rate" class="form-control" value="{{ settings.min_pose_detection_rate }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">MIN_VIDEO_DURATION (s)</label>
+                                <label class="form-label">Мин. длительность видео (с)</label>
                                 <input type="number" step="1" min="1" name="min_video_duration" class="form-control" value="{{ settings.min_video_duration }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">FRAME_SKIP</label>
+                                <label class="form-label">Пропуск кадров (каждый N)</label>
                                 <input type="number" step="1" min="1" name="frame_skip" class="form-control" value="{{ settings.frame_skip }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">POSE_VISIBILITY_MIN</label>
+                                <label class="form-label">Мин. видимость ключевых точек</label>
                                 <input type="number" step="0.01" min="0" max="1" name="pose_visibility_min" class="form-control" value="{{ settings.pose_visibility_min }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">ANGLE_SMOOTHING_ALPHA</label>
+                                <label class="form-label">Сглаживание угла (alpha)</label>
                                 <input type="number" step="0.05" min="0" max="1" name="angle_smoothing_alpha" class="form-control" value="{{ settings.angle_smoothing_alpha }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">PHASE_DEBOUNCE_FRAMES</label>
+                                <label class="form-label">Стабилизация фазы (кадры)</label>
                                 <input type="number" step="1" min="1" name="phase_debounce_frames" class="form-control" value="{{ settings.phase_debounce_frames }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">PUSHUP_DOWN_THRESHOLD</label>
+                                <label class="form-label">Отжимания: нижний порог (°)</label>
                                 <input type="number" step="1" min="30" max="170" name="pushup_down_threshold" class="form-control" value="{{ settings.pushup_down_threshold }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">PUSHUP_UP_THRESHOLD</label>
+                                <label class="form-label">Отжимания: верхний порог (°)</label>
                                 <input type="number" step="1" min="120" max="180" name="pushup_up_threshold" class="form-control" value="{{ settings.pushup_up_threshold }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">SQUAT_DOWN_THRESHOLD</label>
+                                <label class="form-label">Приседания: нижний порог (°)</label>
                                 <input type="number" step="1" min="30" max="170" name="squat_down_threshold" class="form-control" value="{{ settings.squat_down_threshold }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">SQUAT_UP_THRESHOLD</label>
+                                <label class="form-label">Приседания: верхний порог (°)</label>
                                 <input type="number" step="1" min="120" max="180" name="squat_up_threshold" class="form-control" value="{{ settings.squat_up_threshold }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">MEDIAPIPE_MIN_DET_CONF</label>
+                                <label class="form-label">MediaPipe: мин. детекция</label>
                                 <input type="number" step="0.01" min="0" max="1" name="mediapipe_min_detection_confidence" class="form-control" value="{{ settings.mediapipe_min_detection_confidence }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">MEDIAPIPE_MIN_TRACK_CONF</label>
+                                <label class="form-label">MediaPipe: мин. трекинг</label>
                                 <input type="number" step="0.01" min="0" max="1" name="mediapipe_min_tracking_confidence" class="form-control" value="{{ settings.mediapipe_min_tracking_confidence }}">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">MAX_PROCESSING_TIME (s)</label>
+                                <label class="form-label">Макс. время обработки (с)</label>
                                 <input type="number" step="1" min="30" name="max_processing_time" class="form-control" value="{{ settings.max_processing_time }}">
                             </div>
                         </div>
@@ -316,6 +316,22 @@
                     <li>Анализ включает подсчёт повторений через определение позы (MediaPipe)</li>
                     <li>Результаты с уверенностью &lt; 75% помечаются для ручной проверки</li>
                     <li>Worker проверяет очередь каждые 30 секунд</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recording Guidelines -->
+    <div class="row mt-2">
+        <div class="col-12">
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-video"></i> Как правильно снимать видео (отжимания/приседания)</h5>
+                <ul class="mb-0">
+                    <li>Камера сбоку, в кадре всё тело</li>
+                    <li>Устойчиво: штатив или опора, без тряски</li>
+                    <li>Хорошее освещение, без сильных теней</li>
+                    <li>Один непрерывный дубль, без ускорения и монтажа</li>
+                    <li>Начните с исходного положения, чтобы ИИ видел полный цикл</li>
                 </ul>
             </div>
         </div>

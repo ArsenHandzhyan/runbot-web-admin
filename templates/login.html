@@ -47,7 +47,9 @@
                         {% endwith %}
 
                         <form method="POST">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            {% if csrf_token is defined %}
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            {% endif %}
                             <div class="mb-3">
                                 <label for="username" class="form-label">Имя пользователя</label>
                                 <div class="input-group">
