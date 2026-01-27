@@ -11,6 +11,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from functools import wraps
 import logging
 from sqlalchemy.orm import selectinload
+from sqlalchemy import func
 
 # Removed problematic import: from src.web.test_media import test_media_blueprint
 # This import was causing deployment failures on Render.com
