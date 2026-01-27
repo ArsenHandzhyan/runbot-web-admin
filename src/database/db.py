@@ -23,6 +23,11 @@ class DatabaseManager:
         if not self.database_url:
             raise ValueError("DATABASE_URL environment variable is required")
         
+        # For Render PostgreSQL External URL, ensure SSL is configured
+        if 'render.com' in self.database_url and 'sslmode' not in self.database_url:
+            separator = '&' if '?' in self.database_url else '?'
+            self.database_url = f"{self.database_url}{separator}sslmode=require"
+            logger.info("External Render URL: Added sslmode=require")
         # Configure engine based on database type
         if self.database_url.startswith('postgresql'):
             # PostgreSQL configuration
@@ -127,7 +132,6 @@ class DatabaseManager:
         if run not in ('1', 'true', 'yes'):
             return
         logger.info("Running startup migrations (AUTO_MIGRATE_ON_START is enabled)")
-        import os
         script_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
         challenge_script = os.path.join(script_dir, 'migrate_cascade_challenge_registrations.sql')
         event_script = os.path.join(script_dir, 'migrate_cascade_event_registrations.sql')
