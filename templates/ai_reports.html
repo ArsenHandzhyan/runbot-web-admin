@@ -421,7 +421,12 @@ if (aiTestForm) {
             try {
                 data = JSON.parse(text);
             } catch (e) {
-                data = {error: text || 'Не удалось разобрать ответ сервера'};
+                const trimmed = (text || '').trim();
+                if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html')) {
+                    data = {error: 'Сервис AI Worker недоступен (502). Проверьте, что воркер запущен и timeout увеличен.'};
+                } else {
+                    data = {error: text || 'Не удалось разобрать ответ сервера'};
+                }
             }
             if (!ok && data && !data.error) {
                 data.error = 'Ошибка сервера';
