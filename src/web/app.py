@@ -208,6 +208,7 @@ def create_app():
         """Main dashboard"""
         db = db_manager.get_session()
         response_error = None
+        result = None
         try:
             cache_ttl = int(os.getenv('DASHBOARD_CACHE_TTL_SECONDS', '30'))
             cached = _cache_get('dashboard')
