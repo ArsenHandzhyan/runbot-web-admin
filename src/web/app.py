@@ -1307,6 +1307,26 @@ def create_app():
             db.close()
         return redirect(url_for('ai_reports'))
 
+    @app.route('/ai-test/latest')
+    @login_required
+    def ai_test_latest():
+        """Return latest AI test result for polling."""
+        _ensure_ai_test_columns(db_manager)
+        db = db_manager.get_session()
+        try:
+            row = db.query(AITestResult).order_by(AITestResult.created_at.desc()).first()
+            if not row:
+                return jsonify({"status": None, "result": None, "error": None})
+            result = None
+            if row.result_json:
+                try:
+                    result = json.loads(row.result_json)
+                except Exception:
+                    result = None
+            return jsonify({"status": row.status, "result": result, "error": row.error_message})
+        finally:
+            db.close()
+
     @app.route('/ai-reports')
     @login_required
     def ai_reports():

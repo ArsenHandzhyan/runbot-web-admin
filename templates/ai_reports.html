@@ -187,10 +187,7 @@
                         <div class="text-danger mt-2"><strong>Ошибка:</strong> {{ test_error }}</div>
                         {% endif %}
                         {% if not (test_status == 'completed' and test_result) and not (test_status == 'failed' and test_error) %}
-                        <div class="text-muted mt-2">Результат появится после обработки. Обновите страницу через 20–40 секунд.</div>
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">Обновить страницу</button>
-                        </div>
+                        <div class="text-muted mt-2">Результат появится после обработки. Обновляем автоматически…</div>
                         {% endif %}
                     </div>
                 </div>
@@ -456,6 +453,9 @@ if (aiTestForm) {
             if (data.result) {
                 showTestResult(data.result);
             }
+            if (data.status && data.status !== 'completed' && data.status !== 'failed') {
+                startTestPolling();
+            }
         })
         .catch(err => {
             aiTestStatus.classList.add('d-none');
@@ -467,6 +467,33 @@ if (aiTestForm) {
             aiTestError.classList.remove('d-none');
         });
     });
+}
+
+let testPollTimer = null;
+function startTestPolling() {
+    if (testPollTimer) return;
+    testPollTimer = setInterval(() => {
+        fetch("{{ url_for('ai_test_latest') }}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status && aiTestStatusText) {
+                    aiTestStatusText.textContent = data.status;
+                    aiTestResult.classList.remove('d-none');
+                }
+                if (data.result) {
+                    showTestResult(data.result);
+                }
+                if (data.status === 'failed' && data.error) {
+                    aiTestErrorText.textContent = data.error;
+                    aiTestError.classList.remove('d-none');
+                }
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(testPollTimer);
+                    testPollTimer = null;
+                }
+            })
+            .catch(() => {});
+    }, 5000);
 }
 </script>
 {% endblock %}
