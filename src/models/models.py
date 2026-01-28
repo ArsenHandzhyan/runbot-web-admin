@@ -170,7 +170,9 @@ class AITestResult(Base):
     exercise_type = Column(String)
     result_json = Column(Text)
     error_message = Column(Text)
+    status = Column(String, default="queued")
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class ParticipantStats(Base):
     """Statistics model - calculated participant statistics"""

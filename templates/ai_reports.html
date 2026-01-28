@@ -168,8 +168,8 @@
                         <strong>Ошибка:</strong> <span id="ai-test-error-text">{{ test_error }}</span>
                     </div>
 
-                    <div id="ai-test-result" class="alert alert-light mt-3 no-auto-hide {% if not test_result %}d-none{% endif %}">
-                        <div><strong>Статус:</strong> <span id="ai-test-status-text">{{ test_result.status if test_result else '' }}</span></div>
+                    <div id="ai-test-result" class="alert alert-light mt-3 no-auto-hide {% if not (test_result or test_status) %}d-none{% endif %}">
+                        <div><strong>Статус:</strong> <span id="ai-test-status-text">{{ test_status or (test_result.status if test_result else '') }}</span></div>
                         <div><strong>Повторения:</strong> <span id="ai-test-reps">{{ test_result.detected_reps if test_result else '' }}</span></div>
                         <div><strong>Уверенность:</strong> <span id="ai-test-confidence">{{ (test_result.confidence * 100)|round(1) if test_result else '' }}</span>%</div>
                         <div><strong>Длительность:</strong> <span id="ai-test-duration">{{ test_result.duration_sec|round(1) if test_result else '' }}</span>с</div>
@@ -436,7 +436,13 @@ if (aiTestForm) {
                 aiTestError.classList.remove('d-none');
                 return;
             }
-            showTestResult(data.result);
+            if (data.status && aiTestStatusText) {
+                aiTestStatusText.textContent = data.status;
+                aiTestResult.classList.remove('d-none');
+            }
+            if (data.result) {
+                showTestResult(data.result);
+            }
         })
         .catch(err => {
             aiTestStatus.classList.add('d-none');

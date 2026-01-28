@@ -1335,8 +1335,10 @@ def create_app():
             test_row = db.query(AITestResult).order_by(AITestResult.created_at.desc()).first()
             test_result = None
             test_error = None
+            test_status = None
             if test_row:
                 test_error = test_row.error_message
+                test_status = test_row.status
                 if test_row.result_json:
                     try:
                         test_result = json.loads(test_row.result_json)
@@ -1349,6 +1351,7 @@ def create_app():
                                  settings=settings,
                                  test_result=test_result,
                                  test_error=test_error,
+                                 test_status=test_status,
                                  AIAnalysisStatus=AIAnalysisStatus)
         finally:
             db.close()
