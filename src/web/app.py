@@ -1249,11 +1249,26 @@ def create_app():
 
             if response.ok:
                 session["ai_test_result"] = response.json()
+                session["ai_test_error"] = None
+                session.permanent = True
             else:
                 session["ai_test_error"] = f"{response.status_code}: {response.text}"
         except Exception as e:
             session["ai_test_error"] = str(e)
 
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({
+                "result": session.get("ai_test_result"),
+                "error": session.get("ai_test_error")
+            })
+
+        return redirect(url_for('ai_reports'))
+
+    @app.route('/ai-test/clear', methods=['POST'])
+    @login_required
+    def ai_test_clear():
+        session.pop("ai_test_result", None)
+        session.pop("ai_test_error", None)
         return redirect(url_for('ai_reports'))
 
     @app.route('/ai-reports')
@@ -1292,8 +1307,8 @@ def create_app():
                 })
 
             settings = _get_or_create_ai_settings(db)
-            test_result = session.pop("ai_test_result", None)
-            test_error = session.pop("ai_test_error", None)
+            test_result = session.get("ai_test_result")
+            test_error = session.get("ai_test_error")
 
             return render_template('ai_reports.html',
                                  reports=reports,

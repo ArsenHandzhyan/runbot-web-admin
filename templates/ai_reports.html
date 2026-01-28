@@ -142,7 +142,7 @@
                     <h5 class="mb-0"><i class="fas fa-vial"></i> Тестовый анализ</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="{{ url_for('ai_test') }}" enctype="multipart/form-data">
+                    <form id="ai-test-form" method="POST" action="{{ url_for('ai_test') }}" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label class="form-label">Тип упражнения</label>
                             <select class="form-select" name="exercise_type">
@@ -154,31 +154,34 @@
                             <label class="form-label">Видео файл</label>
                             <input type="file" class="form-control" name="video" accept="video/*" required>
                         </div>
-                        <button class="btn btn-success" type="submit">Запустить тест</button>
+                        <div class="d-flex gap-2">
+                            <button id="ai-test-submit" class="btn btn-success" type="submit">Запустить тест</button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearTestResult()">Очистить результат</button>
+                        </div>
                     </form>
 
-                    {% if test_error %}
-                        <div class="alert alert-danger mt-3">
-                            <strong>Ошибка:</strong> {{ test_error }}
-                        </div>
-                    {% endif %}
+                    <div id="ai-test-status" class="alert alert-info mt-3 d-none">
+                        Идёт обработка видео… Пожалуйста, подождите.
+                    </div>
 
-                    {% if test_result %}
-                        <div class="alert alert-light mt-3">
-                            <div><strong>Статус:</strong> {{ test_result.status }}</div>
-                            <div><strong>Повторения:</strong> {{ test_result.detected_reps }}</div>
-                            <div><strong>Уверенность:</strong> {{ (test_result.confidence * 100)|round(1) }}%</div>
-                            <div><strong>Длительность:</strong> {{ test_result.duration_sec|round(1) }}с</div>
-                            <div><strong>Кадры:</strong> {{ test_result.frames_analyzed }}</div>
-                            <div><strong>Поза:</strong> {{ (test_result.pose_detection_rate * 100)|round(1) }}%</div>
-                            {% if test_result.quality_issues %}
-                                <div class="text-warning"><strong>Проблемы:</strong> {{ test_result.quality_issues }}</div>
-                            {% endif %}
-                            {% if test_result.error_message %}
-                                <div class="text-danger"><strong>Ошибка:</strong> {{ test_result.error_message }}</div>
-                            {% endif %}
+                    <div id="ai-test-error" class="alert alert-danger mt-3 {% if not test_error %}d-none{% endif %}">
+                        <strong>Ошибка:</strong> <span id="ai-test-error-text">{{ test_error }}</span>
+                    </div>
+
+                    <div id="ai-test-result" class="alert alert-light mt-3 {% if not test_result %}d-none{% endif %}">
+                        <div><strong>Статус:</strong> <span id="ai-test-status-text">{{ test_result.status if test_result else '' }}</span></div>
+                        <div><strong>Повторения:</strong> <span id="ai-test-reps">{{ test_result.detected_reps if test_result else '' }}</span></div>
+                        <div><strong>Уверенность:</strong> <span id="ai-test-confidence">{{ (test_result.confidence * 100)|round(1) if test_result else '' }}</span>%</div>
+                        <div><strong>Длительность:</strong> <span id="ai-test-duration">{{ test_result.duration_sec|round(1) if test_result else '' }}</span>с</div>
+                        <div><strong>Кадры:</strong> <span id="ai-test-frames">{{ test_result.frames_analyzed if test_result else '' }}</span></div>
+                        <div><strong>Поза:</strong> <span id="ai-test-pose">{{ (test_result.pose_detection_rate * 100)|round(1) if test_result else '' }}</span>%</div>
+                        <div id="ai-test-issues" class="{% if not (test_result and test_result.quality_issues) %}d-none{% endif %}">
+                            <span class="text-warning"><strong>Проблемы:</strong> <span id="ai-test-issues-text">{{ test_result.quality_issues if test_result else '' }}</span></span>
                         </div>
-                    {% endif %}
+                        <div id="ai-test-error-message" class="{% if not (test_result and test_result.error_message) %}d-none{% endif %}">
+                            <span class="text-danger"><strong>Ошибка:</strong> <span id="ai-test-error-message-text">{{ test_result.error_message if test_result else '' }}</span></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -309,7 +312,7 @@
     <!-- Info Block -->
     <div class="row mt-4">
         <div class="col-12">
-            <div class="alert alert-info">
+            <div class="alert alert-info no-auto-hide">
                 <h5><i class="fas fa-info-circle"></i> Информация</h5>
                 <ul class="mb-0">
                     <li>AI Worker автоматически анализирует видео с отжиманиями и приседаниями</li>
@@ -324,7 +327,7 @@
     <!-- Recording Guidelines -->
     <div class="row mt-2">
         <div class="col-12">
-            <div class="alert alert-warning">
+            <div class="alert alert-warning no-auto-hide">
                 <h5><i class="fas fa-video"></i> Как правильно снимать видео (отжимания/приседания)</h5>
                 <ul class="mb-0">
                     <li>Камера сбоку, в кадре всё тело</li>
@@ -341,9 +344,83 @@
 
 {% block scripts %}
 <script>
-// Auto-refresh page every 30 seconds
-setTimeout(function() {
-    location.reload();
-}, 30000);
+
+const aiTestForm = document.getElementById('ai-test-form');
+const aiTestStatus = document.getElementById('ai-test-status');
+const aiTestError = document.getElementById('ai-test-error');
+const aiTestErrorText = document.getElementById('ai-test-error-text');
+const aiTestResult = document.getElementById('ai-test-result');
+const aiTestStatusText = document.getElementById('ai-test-status-text');
+const aiTestReps = document.getElementById('ai-test-reps');
+const aiTestConfidence = document.getElementById('ai-test-confidence');
+const aiTestDuration = document.getElementById('ai-test-duration');
+const aiTestFrames = document.getElementById('ai-test-frames');
+const aiTestPose = document.getElementById('ai-test-pose');
+const aiTestIssues = document.getElementById('ai-test-issues');
+const aiTestIssuesText = document.getElementById('ai-test-issues-text');
+const aiTestErrorMessage = document.getElementById('ai-test-error-message');
+const aiTestErrorMessageText = document.getElementById('ai-test-error-message-text');
+
+function showTestResult(result) {
+    if (!result) return;
+    aiTestStatusText.textContent = result.status || '';
+    aiTestReps.textContent = result.detected_reps ?? '';
+    aiTestConfidence.textContent = result.confidence ? (result.confidence * 100).toFixed(1) : '';
+    aiTestDuration.textContent = result.duration_sec ? result.duration_sec.toFixed(1) : '';
+    aiTestFrames.textContent = result.frames_analyzed ?? '';
+    aiTestPose.textContent = result.pose_detection_rate ? (result.pose_detection_rate * 100).toFixed(1) : '';
+    if (result.quality_issues) {
+        aiTestIssues.classList.remove('d-none');
+        aiTestIssuesText.textContent = result.quality_issues;
+    } else {
+        aiTestIssues.classList.add('d-none');
+    }
+    if (result.error_message) {
+        aiTestErrorMessage.classList.remove('d-none');
+        aiTestErrorMessageText.textContent = result.error_message;
+    } else {
+        aiTestErrorMessage.classList.add('d-none');
+    }
+    aiTestResult.classList.remove('d-none');
+}
+
+function clearTestResult() {
+    fetch("{{ url_for('ai_test_clear') }}", {method: "POST"})
+        .then(() => {
+            aiTestResult.classList.add('d-none');
+            aiTestError.classList.add('d-none');
+        });
+}
+
+if (aiTestForm) {
+    aiTestForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const formData = new FormData(aiTestForm);
+        aiTestStatus.classList.remove('d-none');
+        aiTestError.classList.add('d-none');
+        aiTestResult.classList.add('d-none');
+
+        fetch(aiTestForm.action, {
+            method: 'POST',
+            body: formData,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            aiTestStatus.classList.add('d-none');
+            if (data.error) {
+                aiTestErrorText.textContent = data.error;
+                aiTestError.classList.remove('d-none');
+                return;
+            }
+            showTestResult(data.result);
+        })
+        .catch(err => {
+            aiTestStatus.classList.add('d-none');
+            aiTestErrorText.textContent = err.toString();
+            aiTestError.classList.remove('d-none');
+        });
+    });
+}
 </script>
 {% endblock %}
