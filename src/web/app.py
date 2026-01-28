@@ -1264,14 +1264,8 @@ def create_app():
             )
 
             if response.ok:
+                # For background jobs, worker stores results in DB.
                 result = response.json()
-                test_row = AITestResult(
-                    exercise_type=exercise_type,
-                    result_json=json.dumps(result, ensure_ascii=False),
-                    error_message=None
-                )
-                db.add(test_row)
-                db.commit()
             else:
                 test_row = AITestResult(
                     exercise_type=exercise_type,
