@@ -1248,8 +1248,9 @@ def create_app():
         
         # Check file size
         file_content = video_file.read()
-        if len(file_content) > app.config['MAX_CONTENT_LENGTH']:
-            flash("Файл слишком большой. Максимальный размер: 50MB", "error")
+        max_size = app.config.get('MAX_CONTENT_LENGTH', 50 * 1024 * 1024)  # Fallback to 50MB
+        if len(file_content) > max_size:
+            flash(f"Файл слишком большой. Максимальный размер: {max_size // (1024*1024)}MB", "error")
             return redirect(url_for('ai_reports'))
         
         # Check file type
