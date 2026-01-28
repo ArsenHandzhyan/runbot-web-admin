@@ -1293,6 +1293,7 @@ def create_app():
                 db.commit()
                 response_error = test_row.error_message
         except requests.exceptions.RequestException as e:
+            logger.error(f"AI Worker request failed: {e}", exc_info=True)
             test_row = AITestResult(
                 exercise_type=exercise_type,
                 result_json=None,
