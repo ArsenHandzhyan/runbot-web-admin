@@ -160,16 +160,16 @@
                         </div>
                     </form>
 
-                    <div id="ai-test-status" class="alert alert-info mt-3 d-none no-auto-hide">
-                        Идёт обработка видео… Пожалуйста, подождите.
-                    </div>
-
                     <div id="ai-test-error" class="alert alert-danger mt-3 no-auto-hide {% if not test_error %}d-none{% endif %}">
                         <strong>Ошибка:</strong> <span id="ai-test-error-text">{{ test_error }}</span>
                     </div>
 
                     <div id="ai-test-result" class="alert alert-light mt-3 no-auto-hide {% if not (test_result or test_status) %}d-none{% endif %}">
                         <div><strong>Статус:</strong> <span id="ai-test-status-text">{{ test_status or (test_result.status if test_result else '') }}</span></div>
+                        <div id="ai-test-loading" class="mt-2 {% if test_status not in ['queued', 'processing'] %}d-none{% endif %}">
+                            <span class="ai-loader"></span>
+                            <span class="text-muted ms-2">ИИ анализирует видео…</span>
+                        </div>
                         <div id="ai-test-details" class="{% if not (test_status == 'completed' and test_result) %}d-none{% endif %}">
                             <div><strong>Повторения:</strong> <span id="ai-test-reps">{{ test_result.detected_reps if test_result else '' }}</span></div>
                             <div><strong>Уверенность:</strong> <span id="ai-test-confidence">{{ ((test_result.get('confidence') or 0) * 100)|round(1) if test_result else '' }}</span>%</div>
@@ -185,9 +185,6 @@
                         </div>
                         {% if test_status == 'failed' and test_error %}
                         <div class="text-danger mt-2"><strong>Ошибка:</strong> {{ test_error }}</div>
-                        {% endif %}
-                        {% if test_status in ['queued', 'processing', None] and not test_result %}
-                        <div class="text-muted mt-2">Результат появится после обработки. Обновляем автоматически…</div>
                         {% endif %}
                     </div>
                 </div>
@@ -351,15 +348,29 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.ai-loader {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(0, 0, 0, 0.15);
+    border-top-color: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    animation: ai-spin 0.9s linear infinite;
+}
+@keyframes ai-spin {
+    to { transform: rotate(360deg); }
+}
+</style>
 <script>
 
 const aiTestForm = document.getElementById('ai-test-form');
 const aiTestSubmit = document.getElementById('ai-test-submit');
-const aiTestStatus = document.getElementById('ai-test-status');
 const aiTestError = document.getElementById('ai-test-error');
 const aiTestErrorText = document.getElementById('ai-test-error-text');
 const aiTestResult = document.getElementById('ai-test-result');
 const aiTestStatusText = document.getElementById('ai-test-status-text');
+const aiTestLoading = document.getElementById('ai-test-loading');
 const aiTestDetails = document.getElementById('ai-test-details');
 const aiTestReps = document.getElementById('ai-test-reps');
 const aiTestConfidence = document.getElementById('ai-test-confidence');
@@ -374,6 +385,7 @@ const aiTestErrorMessageText = document.getElementById('ai-test-error-message-te
 function showTestResult(result) {
     if (!result) return;
     if (aiTestStatusText) aiTestStatusText.textContent = result.status || 'completed';
+    if (aiTestLoading) aiTestLoading.classList.add('d-none');
     if (aiTestDetails) aiTestDetails.classList.remove('d-none');
     if (aiTestReps) aiTestReps.textContent = result.detected_reps ?? '';
     if (aiTestConfidence) aiTestConfidence.textContent = result.confidence ? (result.confidence * 100).toFixed(1) : '';
@@ -407,9 +419,9 @@ if (aiTestForm) {
     aiTestForm.addEventListener('submit', function (e) {
         e.preventDefault();
         const formData = new FormData(aiTestForm);
-        aiTestStatus.classList.remove('d-none');
         aiTestError.classList.add('d-none');
         aiTestResult.classList.add('d-none');
+        if (aiTestLoading) aiTestLoading.classList.remove('d-none');
         if (aiTestSubmit) {
             aiTestSubmit.disabled = true;
             aiTestSubmit.textContent = 'Загрузка...';
@@ -422,7 +434,6 @@ if (aiTestForm) {
         })
         .then(res => res.text().then(text => ({ok: res.ok, text})))
         .then(({ok, text}) => {
-            aiTestStatus.classList.add('d-none');
             if (aiTestSubmit) {
                 aiTestSubmit.disabled = false;
                 aiTestSubmit.textContent = 'Запустить тест';
@@ -442,6 +453,7 @@ if (aiTestForm) {
                 data.error = 'Ошибка сервера';
             }
             if (data.error) {
+                if (aiTestLoading) aiTestLoading.classList.add('d-none');
                 aiTestErrorText.textContent = data.error;
                 aiTestError.classList.remove('d-none');
                 return;
@@ -449,6 +461,13 @@ if (aiTestForm) {
             if (data.status && aiTestStatusText) {
                 aiTestStatusText.textContent = data.status;
                 aiTestResult.classList.remove('d-none');
+                if (aiTestLoading) {
+                    if (data.status === 'queued' || data.status === 'processing') {
+                        aiTestLoading.classList.remove('d-none');
+                    } else {
+                        aiTestLoading.classList.add('d-none');
+                    }
+                }
             }
             if (data.result) {
                 showTestResult(data.result);
@@ -458,7 +477,7 @@ if (aiTestForm) {
             }
         })
         .catch(err => {
-            aiTestStatus.classList.add('d-none');
+            if (aiTestLoading) aiTestLoading.classList.add('d-none');
             if (aiTestSubmit) {
                 aiTestSubmit.disabled = false;
                 aiTestSubmit.textContent = 'Запустить тест';
@@ -479,6 +498,13 @@ function startTestPolling() {
                 if (data.status && aiTestStatusText) {
                     aiTestStatusText.textContent = data.status;
                     aiTestResult.classList.remove('d-none');
+                    if (aiTestLoading) {
+                        if (data.status === 'queued' || data.status === 'processing') {
+                            aiTestLoading.classList.remove('d-none');
+                        } else {
+                            aiTestLoading.classList.add('d-none');
+                        }
+                    }
                 }
                 if (data.result) {
                     showTestResult(data.result);
@@ -500,7 +526,10 @@ function startTestPolling() {
 if (aiTestStatusText) {
     const currentStatus = (aiTestStatusText.textContent || '').trim();
     if (currentStatus === 'queued' || currentStatus === 'processing') {
+        if (aiTestLoading) aiTestLoading.classList.remove('d-none');
         startTestPolling();
+    } else if (aiTestLoading) {
+        aiTestLoading.classList.add('d-none');
     }
 }
 </script>
