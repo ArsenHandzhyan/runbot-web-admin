@@ -207,6 +207,7 @@ def create_app():
     def index():
         """Main dashboard"""
         db = db_manager.get_session()
+        response_error = None
         try:
             cache_ttl = int(os.getenv('DASHBOARD_CACHE_TTL_SECONDS', '30'))
             cached = _cache_get('dashboard')
@@ -1278,6 +1279,7 @@ def create_app():
                 )
                 db.add(test_row)
                 db.commit()
+                response_error = test_row.error_message
         except Exception as e:
             test_row = AITestResult(
                 exercise_type=exercise_type,
@@ -1286,13 +1288,14 @@ def create_app():
             )
             db.add(test_row)
             db.commit()
+            response_error = test_row.error_message
         finally:
             db.close()
 
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({
                 "result": result if 'result' in locals() else None,
-                "error": test_row.error_message if 'test_row' in locals() else None
+                "error": response_error
             })
 
         return redirect(url_for('ai_reports'))
