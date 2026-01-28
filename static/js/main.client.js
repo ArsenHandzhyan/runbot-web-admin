@@ -200,14 +200,26 @@ function startPolling() {
         fetch('/ai-test/latest')
             .then(response => response.json())
             .then(data => {
-                if (data.result) {
-                    showResult(data.result, data.result.status);
-                    if (data.result.status !== 'processing' && data.result.status !== 'queued') {
+                if (data.status) {
+                    showResult(data.result, data.status);
+                    // Stop polling if test is completed or failed
+                    if (data.status === 'completed' || data.status === 'failed') {
+                        console.log('Test completed with status:', data.status);
                         clearInterval(pollInterval);
+                        pollInterval = null;
                     }
+                } else {
+                    // No status returned, stop polling
+                    console.log('No status in response, stopping polling');
+                    clearInterval(pollInterval);
+                    pollInterval = null;
                 }
             })
-            .catch(() => {});
+            .catch(error => {
+                console.error('Polling error:', error);
+                clearInterval(pollInterval);
+                pollInterval = null;
+            });
     }, 2000); // Poll every 2 seconds
 }
 
