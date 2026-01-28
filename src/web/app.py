@@ -1296,7 +1296,7 @@ def create_app():
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({
                 "result": result if 'result' in locals() else None,
-                "error": response_error
+                "error": response_error if 'response_error' in locals() else None
             })
 
         return redirect(url_for('ai_reports'))
