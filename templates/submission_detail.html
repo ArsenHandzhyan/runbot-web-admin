@@ -133,7 +133,9 @@
                                  console.log('Loading file:', filePath);
                                  console.log('Encoded path:', encodedPath);
 
-                                 fetch(`/get-file-url?path=${encodedPath}`)
+                                 fetch(`/get-file-url?path=${encodedPath}`, {
+                                     credentials: 'same-origin'
+                                 })
                                      .then(response => {
                                          console.log('Response status:', response.status);
                                          return response.json();
