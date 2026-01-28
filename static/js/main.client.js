@@ -212,10 +212,11 @@ function startPolling() {
 }
 
 // Save test state to localStorage
-function saveTestState(status, result) {
+function saveTestState(status, result, testId = null) {
     const state = {
         status: status,
         result: result,
+        testId: testId || (result ? result.test_id : null),
         timestamp: Date.now()
     };
     localStorage.setItem('aiTestState', JSON.stringify(state));
@@ -268,11 +269,19 @@ showResult = function(result, status) {
         stopPolling();
         setTimeout(() => {
             clearTestState();
-            // Optionally hide result after some time
-            // document.getElementById('ai-test-result').classList.add('d-none');
         }, 10000); // Clear after 10 seconds
     }
 };
+
+// Override the initial showResult call in form submission
+const originalFormSubmit = document.getElementById('ai-test-form');
+if (originalFormSubmit) {
+    originalFormSubmit.addEventListener('submit', function(e) {
+        // Show loading state immediately
+        showResult(null, 'processing');
+        // ... rest of form submission logic
+    });
+}
 
 const originalClearTestResult = clearTestResult;
 clearTestResult = function() {
