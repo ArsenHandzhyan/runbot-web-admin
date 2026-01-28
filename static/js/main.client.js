@@ -49,6 +49,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('ai-test-result').classList.add('d-none');
             document.getElementById('ai-test-error').classList.add('d-none');
             
+            // Show loading state immediately
+            showResult(null, 'processing');
+            
             // Submit via AJAX
             fetch('/ai-test', {
                 method: 'POST',
@@ -74,6 +77,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     showError(data.error);
                 } else {
                     showResult(data.result, data.status);
+                    // Start polling for updates if processing
+                    if (data.status === 'processing' || data.status === 'queued') {
+                        startPolling();
+                    }
                 }
             })
             .catch(error => {
