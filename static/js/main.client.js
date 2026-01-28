@@ -262,9 +262,14 @@ showResult = function(result, status) {
     originalShowResult(result, status);
     saveTestState(status, result);
     
-    // Clear state when test is completed or failed
+    // Stop polling and clear state when test is completed or failed
     if (status === 'completed' || status === 'failed') {
-        setTimeout(clearTestState, 5000); // Clear after 5 seconds
+        stopPolling();
+        setTimeout(() => {
+            clearTestState();
+            // Optionally hide result after some time
+            // document.getElementById('ai-test-result').classList.add('d-none');
+        }, 10000); // Clear after 10 seconds
     }
 };
 
