@@ -170,21 +170,23 @@
 
                     <div id="ai-test-result" class="alert alert-light mt-3 no-auto-hide {% if not (test_result or test_status) %}d-none{% endif %}">
                         <div><strong>Статус:</strong> <span id="ai-test-status-text">{{ test_status or (test_result.status if test_result else '') }}</span></div>
-                        {% if test_status == 'completed' and test_result %}
-                        <div><strong>Повторения:</strong> <span id="ai-test-reps">{{ test_result.detected_reps }}</span></div>
-                        <div><strong>Уверенность:</strong> <span id="ai-test-confidence">{{ ((test_result.get('confidence') or 0) * 100)|round(1) }}</span>%</div>
-                        <div><strong>Длительность:</strong> <span id="ai-test-duration">{{ (test_result.get('duration_sec') or 0)|round(1) }}</span>с</div>
-                        <div><strong>Кадры:</strong> <span id="ai-test-frames">{{ test_result.get('frames_analyzed') }}</span></div>
-                        <div><strong>Поза:</strong> <span id="ai-test-pose">{{ ((test_result.get('pose_detection_rate') or 0) * 100)|round(1) }}</span>%</div>
-                        <div id="ai-test-issues" class="{% if not (test_result and test_result.get('quality_issues')) %}d-none{% endif %}">
-                            <span class="text-warning"><strong>Проблемы:</strong> <span id="ai-test-issues-text">{{ test_result.get('quality_issues') if test_result else '' }}</span></span>
+                        <div id="ai-test-details" class="{% if not (test_status == 'completed' and test_result) %}d-none{% endif %}">
+                            <div><strong>Повторения:</strong> <span id="ai-test-reps">{{ test_result.detected_reps if test_result else '' }}</span></div>
+                            <div><strong>Уверенность:</strong> <span id="ai-test-confidence">{{ ((test_result.get('confidence') or 0) * 100)|round(1) if test_result else '' }}</span>%</div>
+                            <div><strong>Длительность:</strong> <span id="ai-test-duration">{{ (test_result.get('duration_sec') or 0)|round(1) if test_result else '' }}</span>с</div>
+                            <div><strong>Кадры:</strong> <span id="ai-test-frames">{{ test_result.get('frames_analyzed') if test_result else '' }}</span></div>
+                            <div><strong>Поза:</strong> <span id="ai-test-pose">{{ ((test_result.get('pose_detection_rate') or 0) * 100)|round(1) if test_result else '' }}</span>%</div>
+                            <div id="ai-test-issues" class="{% if not (test_result and test_result.get('quality_issues')) %}d-none{% endif %}">
+                                <span class="text-warning"><strong>Проблемы:</strong> <span id="ai-test-issues-text">{{ test_result.get('quality_issues') if test_result else '' }}</span></span>
+                            </div>
+                            <div id="ai-test-error-message" class="{% if not (test_result and test_result.get('error_message')) %}d-none{% endif %}">
+                                <span class="text-danger"><strong>Ошибка:</strong> <span id="ai-test-error-message-text">{{ test_result.get('error_message') if test_result else '' }}</span></span>
+                            </div>
                         </div>
-                        <div id="ai-test-error-message" class="{% if not (test_result and test_result.get('error_message')) %}d-none{% endif %}">
-                            <span class="text-danger"><strong>Ошибка:</strong> <span id="ai-test-error-message-text">{{ test_result.get('error_message') if test_result else '' }}</span></span>
-                        </div>
-                        {% elif test_status == 'failed' and test_error %}
+                        {% if test_status == 'failed' and test_error %}
                         <div class="text-danger mt-2"><strong>Ошибка:</strong> {{ test_error }}</div>
-                        {% else %}
+                        {% endif %}
+                        {% if not (test_status == 'completed' and test_result) and not (test_status == 'failed' and test_error) %}
                         <div class="text-muted mt-2">Результат появится после обработки. Обновите страницу через 20–40 секунд.</div>
                         <div class="mt-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">Обновить страницу</button>
@@ -361,6 +363,7 @@ const aiTestError = document.getElementById('ai-test-error');
 const aiTestErrorText = document.getElementById('ai-test-error-text');
 const aiTestResult = document.getElementById('ai-test-result');
 const aiTestStatusText = document.getElementById('ai-test-status-text');
+const aiTestDetails = document.getElementById('ai-test-details');
 const aiTestReps = document.getElementById('ai-test-reps');
 const aiTestConfidence = document.getElementById('ai-test-confidence');
 const aiTestDuration = document.getElementById('ai-test-duration');
@@ -373,23 +376,24 @@ const aiTestErrorMessageText = document.getElementById('ai-test-error-message-te
 
 function showTestResult(result) {
     if (!result) return;
-    aiTestStatusText.textContent = result.status || '';
-    aiTestReps.textContent = result.detected_reps ?? '';
-    aiTestConfidence.textContent = result.confidence ? (result.confidence * 100).toFixed(1) : '';
-    aiTestDuration.textContent = result.duration_sec ? result.duration_sec.toFixed(1) : '';
-    aiTestFrames.textContent = result.frames_analyzed ?? '';
-    aiTestPose.textContent = result.pose_detection_rate ? (result.pose_detection_rate * 100).toFixed(1) : '';
+    if (aiTestStatusText) aiTestStatusText.textContent = result.status || 'completed';
+    if (aiTestDetails) aiTestDetails.classList.remove('d-none');
+    if (aiTestReps) aiTestReps.textContent = result.detected_reps ?? '';
+    if (aiTestConfidence) aiTestConfidence.textContent = result.confidence ? (result.confidence * 100).toFixed(1) : '';
+    if (aiTestDuration) aiTestDuration.textContent = result.duration_sec ? result.duration_sec.toFixed(1) : '';
+    if (aiTestFrames) aiTestFrames.textContent = result.frames_analyzed ?? '';
+    if (aiTestPose) aiTestPose.textContent = result.pose_detection_rate ? (result.pose_detection_rate * 100).toFixed(1) : '';
     if (result.quality_issues) {
-        aiTestIssues.classList.remove('d-none');
-        aiTestIssuesText.textContent = result.quality_issues;
+        if (aiTestIssues) aiTestIssues.classList.remove('d-none');
+        if (aiTestIssuesText) aiTestIssuesText.textContent = result.quality_issues;
     } else {
-        aiTestIssues.classList.add('d-none');
+        if (aiTestIssues) aiTestIssues.classList.add('d-none');
     }
     if (result.error_message) {
-        aiTestErrorMessage.classList.remove('d-none');
-        aiTestErrorMessageText.textContent = result.error_message;
+        if (aiTestErrorMessage) aiTestErrorMessage.classList.remove('d-none');
+        if (aiTestErrorMessageText) aiTestErrorMessageText.textContent = result.error_message;
     } else {
-        aiTestErrorMessage.classList.add('d-none');
+        if (aiTestErrorMessage) aiTestErrorMessage.classList.add('d-none');
     }
     aiTestResult.classList.remove('d-none');
 }
