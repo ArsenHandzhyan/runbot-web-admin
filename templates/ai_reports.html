@@ -186,7 +186,7 @@
                         {% if test_status == 'failed' and test_error %}
                         <div class="text-danger mt-2"><strong>Ошибка:</strong> {{ test_error }}</div>
                         {% endif %}
-                        {% if not (test_status == 'completed' and test_result) and not (test_status == 'failed' and test_error) %}
+                        {% if test_status in ['queued', 'processing', None] and not test_result %}
                         <div class="text-muted mt-2">Результат появится после обработки. Обновляем автоматически…</div>
                         {% endif %}
                     </div>
