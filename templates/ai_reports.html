@@ -495,5 +495,13 @@ function startTestPolling() {
             .catch(() => {});
     }, 5000);
 }
+
+// Start polling on page load if queued/processing
+if (aiTestStatusText) {
+    const currentStatus = (aiTestStatusText.textContent || '').trim();
+    if (currentStatus === 'queued' || currentStatus === 'processing') {
+        startTestPolling();
+    }
+}
 </script>
 {% endblock %}

@@ -209,6 +209,7 @@ def create_app():
         db = db_manager.get_session()
         response_error = None
         result = None
+        response_status = None
         try:
             cache_ttl = int(os.getenv('DASHBOARD_CACHE_TTL_SECONDS', '30'))
             cached = _cache_get('dashboard')
@@ -1266,6 +1267,7 @@ def create_app():
             if response.ok:
                 # For background jobs, worker stores results in DB.
                 result = response.json()
+                response_status = result.get("status")
             else:
                 test_row = AITestResult(
                     exercise_type=exercise_type,
@@ -1290,7 +1292,8 @@ def create_app():
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({
                 "result": result if 'result' in locals() else None,
-                "error": response_error if 'response_error' in locals() else None
+                "error": response_error if 'response_error' in locals() else None,
+                "status": response_status if 'response_status' in locals() else None
             })
 
         return redirect(url_for('ai_reports'))
