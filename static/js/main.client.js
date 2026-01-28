@@ -263,8 +263,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const savedState = loadTestState();
     if (savedState) {
         showResult(savedState.result, savedState.status);
-        // Always start polling if there was a saved state - let server decide actual status
-        if (savedState.status !== 'completed' && savedState.status !== 'failed') {
+        // Only start polling if test is actually in progress (not completed/failed)
+        if (savedState.status === 'processing' || savedState.status === 'queued') {
+            console.log('Resuming active test polling');
             startPolling();
         }
     }
