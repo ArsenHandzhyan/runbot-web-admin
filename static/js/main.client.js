@@ -187,6 +187,7 @@ function clearTestResult() {
     document.getElementById('ai-test-result').classList.add('d-none');
     document.getElementById('ai-test-error').classList.add('d-none');
     document.getElementById('ai-test-form').reset();
+    clearTestState();
 }
 
 // Poll for AI test results
@@ -210,10 +211,65 @@ function startPolling() {
     }, 2000); // Poll every 2 seconds
 }
 
-// Start polling if there's a processing test
+// Save test state to localStorage
+function saveTestState(status, result) {
+    const state = {
+        status: status,
+        result: result,
+        timestamp: Date.now()
+    };
+    localStorage.setItem('aiTestState', JSON.stringify(state));
+}
+
+// Load test state from localStorage
+function loadTestState() {
+    const stateStr = localStorage.getItem('aiTestState');
+    if (!stateStr) return null;
+    
+    try {
+        const state = JSON.parse(stateStr);
+        // Clear state if older than 1 hour
+        if (Date.now() - state.timestamp > 3600000) {
+            localStorage.removeItem('aiTestState');
+            return null;
+        }
+        return state;
+    } catch (e) {
+        localStorage.removeItem('aiTestState');
+        return null;
+    }
+}
+
+// Clear test state
+function clearTestState() {
+    localStorage.removeItem('aiTestState');
+}
+
+// Restore test state on page load
 document.addEventListener('DOMContentLoaded', function() {
-    const statusText = document.getElementById('ai-test-status-text');
-    if (statusText && (statusText.textContent === 'processing' || statusText.textContent === 'queued')) {
-        startPolling();
+    const savedState = loadTestState();
+    if (savedState) {
+        showResult(savedState.result, savedState.status);
+        if (savedState.status === 'processing' || savedState.status === 'queued') {
+            startPolling();
+        }
     }
 });
+
+// Update saveTestState calls in existing functions
+const originalShowResult = showResult;
+showResult = function(result, status) {
+    originalShowResult(result, status);
+    saveTestState(status, result);
+    
+    // Clear state when test is completed or failed
+    if (status === 'completed' || status === 'failed') {
+        setTimeout(clearTestState, 5000); // Clear after 5 seconds
+    }
+};
+
+const originalClearTestResult = clearTestResult;
+clearTestResult = function() {
+    originalClearTestResult();
+    clearTestState();
+};
