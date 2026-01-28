@@ -171,15 +171,15 @@
                     <div id="ai-test-result" class="alert alert-light mt-3 no-auto-hide {% if not (test_result or test_status) %}d-none{% endif %}">
                         <div><strong>Статус:</strong> <span id="ai-test-status-text">{{ test_status or (test_result.status if test_result else '') }}</span></div>
                         <div><strong>Повторения:</strong> <span id="ai-test-reps">{{ test_result.detected_reps if test_result else '' }}</span></div>
-                        <div><strong>Уверенность:</strong> <span id="ai-test-confidence">{{ (test_result.confidence * 100)|round(1) if test_result else '' }}</span>%</div>
-                        <div><strong>Длительность:</strong> <span id="ai-test-duration">{{ test_result.duration_sec|round(1) if test_result else '' }}</span>с</div>
-                        <div><strong>Кадры:</strong> <span id="ai-test-frames">{{ test_result.frames_analyzed if test_result else '' }}</span></div>
-                        <div><strong>Поза:</strong> <span id="ai-test-pose">{{ (test_result.pose_detection_rate * 100)|round(1) if test_result else '' }}</span>%</div>
-                        <div id="ai-test-issues" class="{% if not (test_result and test_result.quality_issues) %}d-none{% endif %}">
-                            <span class="text-warning"><strong>Проблемы:</strong> <span id="ai-test-issues-text">{{ test_result.quality_issues if test_result else '' }}</span></span>
+                        <div><strong>Уверенность:</strong> <span id="ai-test-confidence">{{ ((test_result.get('confidence') or 0) * 100)|round(1) if test_result else '' }}</span>%</div>
+                        <div><strong>Длительность:</strong> <span id="ai-test-duration">{{ test_result.get('duration_sec')|round(1) if test_result else '' }}</span>с</div>
+                        <div><strong>Кадры:</strong> <span id="ai-test-frames">{{ test_result.get('frames_analyzed') if test_result else '' }}</span></div>
+                        <div><strong>Поза:</strong> <span id="ai-test-pose">{{ ((test_result.get('pose_detection_rate') or 0) * 100)|round(1) if test_result else '' }}</span>%</div>
+                        <div id="ai-test-issues" class="{% if not (test_result and test_result.get('quality_issues')) %}d-none{% endif %}">
+                            <span class="text-warning"><strong>Проблемы:</strong> <span id="ai-test-issues-text">{{ test_result.get('quality_issues') if test_result else '' }}</span></span>
                         </div>
-                        <div id="ai-test-error-message" class="{% if not (test_result and test_result.error_message) %}d-none{% endif %}">
-                            <span class="text-danger"><strong>Ошибка:</strong> <span id="ai-test-error-message-text">{{ test_result.error_message if test_result else '' }}</span></span>
+                        <div id="ai-test-error-message" class="{% if not (test_result and test_result.get('error_message')) %}d-none{% endif %}">
+                            <span class="text-danger"><strong>Ошибка:</strong> <span id="ai-test-error-message-text">{{ test_result.get('error_message') if test_result else '' }}</span></span>
                         </div>
                     </div>
                 </div>
