@@ -142,7 +142,7 @@
                     <h5 class="mb-0"><i class="fas fa-vial"></i> Тестовый анализ</h5>
                 </div>
                 <div class="card-body">
-                    <form id="ai-test-form" method="POST" action="{{ url_for('ai_test') }}" enctype="multipart/form-data">
+                    <form id="ai-test-form" class="no-auto-loading" method="POST" action="{{ url_for('ai_test') }}" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label class="form-label">Тип упражнения</label>
                             <select class="form-select" name="exercise_type">
@@ -160,15 +160,15 @@
                         </div>
                     </form>
 
-                    <div id="ai-test-status" class="alert alert-info mt-3 d-none">
+                    <div id="ai-test-status" class="alert alert-info mt-3 d-none no-auto-hide">
                         Идёт обработка видео… Пожалуйста, подождите.
                     </div>
 
-                    <div id="ai-test-error" class="alert alert-danger mt-3 {% if not test_error %}d-none{% endif %}">
+                    <div id="ai-test-error" class="alert alert-danger mt-3 no-auto-hide {% if not test_error %}d-none{% endif %}">
                         <strong>Ошибка:</strong> <span id="ai-test-error-text">{{ test_error }}</span>
                     </div>
 
-                    <div id="ai-test-result" class="alert alert-light mt-3 {% if not test_result %}d-none{% endif %}">
+                    <div id="ai-test-result" class="alert alert-light mt-3 no-auto-hide {% if not test_result %}d-none{% endif %}">
                         <div><strong>Статус:</strong> <span id="ai-test-status-text">{{ test_result.status if test_result else '' }}</span></div>
                         <div><strong>Повторения:</strong> <span id="ai-test-reps">{{ test_result.detected_reps if test_result else '' }}</span></div>
                         <div><strong>Уверенность:</strong> <span id="ai-test-confidence">{{ (test_result.confidence * 100)|round(1) if test_result else '' }}</span>%</div>
@@ -346,6 +346,7 @@
 <script>
 
 const aiTestForm = document.getElementById('ai-test-form');
+const aiTestSubmit = document.getElementById('ai-test-submit');
 const aiTestStatus = document.getElementById('ai-test-status');
 const aiTestError = document.getElementById('ai-test-error');
 const aiTestErrorText = document.getElementById('ai-test-error-text');
@@ -399,6 +400,10 @@ if (aiTestForm) {
         aiTestStatus.classList.remove('d-none');
         aiTestError.classList.add('d-none');
         aiTestResult.classList.add('d-none');
+        if (aiTestSubmit) {
+            aiTestSubmit.disabled = true;
+            aiTestSubmit.textContent = 'Загрузка...';
+        }
 
         fetch(aiTestForm.action, {
             method: 'POST',
@@ -408,6 +413,10 @@ if (aiTestForm) {
         .then(res => res.json())
         .then(data => {
             aiTestStatus.classList.add('d-none');
+            if (aiTestSubmit) {
+                aiTestSubmit.disabled = false;
+                aiTestSubmit.textContent = 'Запустить тест';
+            }
             if (data.error) {
                 aiTestErrorText.textContent = data.error;
                 aiTestError.classList.remove('d-none');
@@ -417,6 +426,10 @@ if (aiTestForm) {
         })
         .catch(err => {
             aiTestStatus.classList.add('d-none');
+            if (aiTestSubmit) {
+                aiTestSubmit.disabled = false;
+                aiTestSubmit.textContent = 'Запустить тест';
+            }
             aiTestErrorText.textContent = err.toString();
             aiTestError.classList.remove('d-none');
         });

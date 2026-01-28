@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Loading state for forms
-    const forms = document.querySelectorAll('form');
+    const forms = document.querySelectorAll('form:not(.no-auto-loading)');
     forms.forEach(form => {
         form.addEventListener('submit', function() {
             const submitButton = form.querySelector('button[type="submit"]');
