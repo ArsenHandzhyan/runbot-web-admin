@@ -250,7 +250,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const savedState = loadTestState();
     if (savedState) {
         showResult(savedState.result, savedState.status);
-        if (savedState.status === 'processing' || savedState.status === 'queued') {
+        // Always start polling if there was a saved state - let server decide actual status
+        if (savedState.status !== 'completed' && savedState.status !== 'failed') {
             startPolling();
         }
     }
