@@ -410,12 +410,21 @@ if (aiTestForm) {
             body: formData,
             headers: {'X-Requested-With': 'XMLHttpRequest'}
         })
-        .then(res => res.json())
-        .then(data => {
+        .then(res => res.text().then(text => ({ok: res.ok, text})))
+        .then(({ok, text}) => {
             aiTestStatus.classList.add('d-none');
             if (aiTestSubmit) {
                 aiTestSubmit.disabled = false;
                 aiTestSubmit.textContent = 'Запустить тест';
+            }
+            let data = null;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                data = {error: text || 'Не удалось разобрать ответ сервера'};
+            }
+            if (!ok && data && !data.error) {
+                data.error = 'Ошибка сервера';
             }
             if (data.error) {
                 aiTestErrorText.textContent = data.error;
