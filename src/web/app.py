@@ -1245,6 +1245,13 @@ def create_app():
         if not video_file or video_file.filename == "":
             flash("Выберите видео для теста", "error")
             return redirect(url_for('ai_reports'))
+        
+        # Check file size
+        if len(video_file.read()) > app.config['MAX_CONTENT_LENGTH']:
+            video_file.seek(0)  # Reset file pointer
+            flash("Файл слишком большой. Максимальный размер: 50MB", "error")
+            return redirect(url_for('ai_reports'))
+        video_file.seek(0)  # Reset file pointer for reading
 
         db = db_manager.get_session()
         try:
@@ -1277,11 +1284,21 @@ def create_app():
                 db.add(test_row)
                 db.commit()
                 response_error = test_row.error_message
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             test_row = AITestResult(
                 exercise_type=exercise_type,
                 result_json=None,
-                error_message=str(e)
+                error_message=f"Ошибка соединения с AI Worker: {str(e)}"
+            )
+            db.add(test_row)
+            db.commit()
+            response_error = test_row.error_message
+        except Exception as e:
+            logger.error(f"Unexpected error in AI test: {e}", exc_info=True)
+            test_row = AITestResult(
+                exercise_type=exercise_type,
+                result_json=None,
+                error_message=f"Внутренняя ошибка: {str(e)}"
             )
             db.add(test_row)
             db.commit()
