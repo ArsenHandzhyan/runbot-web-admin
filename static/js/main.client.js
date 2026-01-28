@@ -31,6 +31,49 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+    
+    // AI Test form handler
+    const aiTestForm = document.getElementById('ai-test-form');
+    if (aiTestForm) {
+        aiTestForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitButton = document.getElementById('ai-test-submit');
+            const formData = new FormData(aiTestForm);
+            
+            // Show loading state
+            submitButton.innerHTML = '<span class="loading"></span> Анализируем...';
+            submitButton.disabled = true;
+            
+            // Hide previous results
+            document.getElementById('ai-test-result').classList.add('d-none');
+            document.getElementById('ai-test-error').classList.add('d-none');
+            
+            // Submit via AJAX
+            fetch('/ai-test', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showResult(data.result, data.status);
+                }
+            })
+            .catch(error => {
+                showError('Ошибка сети: ' + error.message);
+            })
+            .finally(() => {
+                submitButton.innerHTML = 'Запустить тест';
+                submitButton.disabled = false;
+            });
+        });
+    }
 });
 
 // Utility functions
@@ -61,3 +104,97 @@ function copyToClipboard(text) {
         }, 3000);
     });
 }
+
+function showError(message) {
+    const errorDiv = document.getElementById('ai-test-error');
+    const errorText = document.getElementById('ai-test-error-text');
+    errorText.textContent = message;
+    errorDiv.classList.remove('d-none');
+    
+    // Scroll to error
+    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function showResult(result, status) {
+    const resultDiv = document.getElementById('ai-test-result');
+    const statusText = document.getElementById('ai-test-status-text');
+    const loadingDiv = document.getElementById('ai-test-loading');
+    const detailsDiv = document.getElementById('ai-test-details');
+    
+    statusText.textContent = status || 'Неизвестно';
+    
+    if (status === 'completed' && result) {
+        // Show results
+        document.getElementById('ai-test-reps').textContent = result.detected_reps || '0';
+        document.getElementById('ai-test-confidence').textContent = ((result.confidence || 0) * 100).toFixed(1);
+        document.getElementById('ai-test-duration').textContent = (result.duration_sec || 0).toFixed(1);
+        document.getElementById('ai-test-frames').textContent = result.frames_analyzed || '0';
+        document.getElementById('ai-test-pose').textContent = ((result.pose_detection_rate || 0) * 100).toFixed(1);
+        
+        if (result.quality_issues) {
+            document.getElementById('ai-test-issues-text').textContent = result.quality_issues;
+            document.getElementById('ai-test-issues').classList.remove('d-none');
+        } else {
+            document.getElementById('ai-test-issues').classList.add('d-none');
+        }
+        
+        if (result.error_message) {
+            document.getElementById('ai-test-error-message-text').textContent = result.error_message;
+            document.getElementById('ai-test-error-message').classList.remove('d-none');
+        } else {
+            document.getElementById('ai-test-error-message').classList.add('d-none');
+        }
+        
+        loadingDiv.classList.add('d-none');
+        detailsDiv.classList.remove('d-none');
+    } else if (status === 'failed') {
+        // Show error
+        if (result && result.error_message) {
+            showError(result.error_message);
+        }
+        loadingDiv.classList.add('d-none');
+        detailsDiv.classList.add('d-none');
+    } else {
+        // Show loading
+        loadingDiv.classList.remove('d-none');
+        detailsDiv.classList.add('d-none');
+    }
+    
+    resultDiv.classList.remove('d-none');
+    resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function clearTestResult() {
+    document.getElementById('ai-test-result').classList.add('d-none');
+    document.getElementById('ai-test-error').classList.add('d-none');
+    document.getElementById('ai-test-form').reset();
+}
+
+// Poll for AI test results
+let pollInterval;
+
+function startPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    
+    pollInterval = setInterval(() => {
+        fetch('/ai-test/latest')
+            .then(response => response.json())
+            .then(data => {
+                if (data.result) {
+                    showResult(data.result, data.result.status);
+                    if (data.result.status !== 'processing' && data.result.status !== 'queued') {
+                        clearInterval(pollInterval);
+                    }
+                }
+            })
+            .catch(() => {});
+    }, 2000); // Poll every 2 seconds
+}
+
+// Start polling if there's a processing test
+document.addEventListener('DOMContentLoaded', function() {
+    const statusText = document.getElementById('ai-test-status-text');
+    if (statusText && (statusText.textContent === 'processing' || statusText.textContent === 'queued')) {
+        startPolling();
+    }
+});
