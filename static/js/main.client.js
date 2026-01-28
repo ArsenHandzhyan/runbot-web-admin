@@ -57,7 +57,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // Handle non-JSON response (probably error page)
+                    return response.text().then(text => {
+                        throw new Error(`Server returned ${response.status}: ${text.substring(0, 200)}...`);
+                    });
+                }
+            })
             .then(data => {
                 if (data.error) {
                     showError(data.error);
@@ -66,6 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
+                console.error('Fetch error:', error);
                 showError('Ошибка сети: ' + error.message);
             })
             .finally(() => {
