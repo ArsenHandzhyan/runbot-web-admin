@@ -382,6 +382,11 @@ const aiTestIssuesText = document.getElementById('ai-test-issues-text');
 const aiTestErrorMessage = document.getElementById('ai-test-error-message');
 const aiTestErrorMessageText = document.getElementById('ai-test-error-message-text');
 
+function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : null;
+}
+
 function showTestResult(result) {
     if (!result) return;
     if (aiTestStatusText) aiTestStatusText.textContent = result.status || 'completed';
@@ -408,16 +413,30 @@ function showTestResult(result) {
 }
 
 function clearTestResult() {
-    fetch("{{ url_for('ai_test_clear') }}", {method: "POST"})
+    const csrfToken = getCsrfToken();
+    const headers = {};
+    if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+    fetch("{{ url_for('ai_test_clear') }}", {method: "POST", headers})
         .then(() => {
+            if (testPollTimer) {
+                clearInterval(testPollTimer);
+                testPollTimer = null;
+            }
             aiTestResult.classList.add('d-none');
             aiTestError.classList.add('d-none');
+            if (aiTestLoading) aiTestLoading.classList.add('d-none');
+            if (aiTestDetails) aiTestDetails.classList.add('d-none');
+            if (aiTestStatusText) aiTestStatusText.textContent = '';
         });
 }
 
 if (aiTestForm) {
     aiTestForm.addEventListener('submit', function (e) {
         e.preventDefault();
+        if (testPollTimer) {
+            clearInterval(testPollTimer);
+            testPollTimer = null;
+        }
         const formData = new FormData(aiTestForm);
         aiTestError.classList.add('d-none');
         aiTestResult.classList.add('d-none');
@@ -427,10 +446,13 @@ if (aiTestForm) {
             aiTestSubmit.textContent = 'Загрузка...';
         }
 
+        const csrfToken = getCsrfToken();
+        const headers = {'X-Requested-With': 'XMLHttpRequest'};
+        if (csrfToken) headers['X-CSRFToken'] = csrfToken;
         fetch(aiTestForm.action, {
             method: 'POST',
             body: formData,
-            headers: {'X-Requested-With': 'XMLHttpRequest'}
+            headers
         })
         .then(res => res.text().then(text => ({ok: res.ok, text})))
         .then(({ok, text}) => {
