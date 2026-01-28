@@ -162,6 +162,16 @@ class AIWorkerSettings(Base):
 
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class AITestResult(Base):
+    """Stores latest AI test results for web admin"""
+    __tablename__ = "ai_test_results"
+
+    id = Column(Integer, primary_key=True)
+    exercise_type = Column(String)
+    result_json = Column(Text)
+    error_message = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class ParticipantStats(Base):
     """Statistics model - calculated participant statistics"""
     __tablename__ = 'participant_stats'

@@ -8,6 +8,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+import json
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -20,7 +21,7 @@ from sqlalchemy.orm import selectinload
 # This import was causing deployment failures on Render.com
 
 from src.database.db import DatabaseManager
-from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, EventStatus, ChallengeRegistration, AIAnalysis, AIAnalysisStatus, AIWorkerSettings
+from src.models.models import Participant, Event, Challenge, ChallengeType, Submission, SubmissionStatus, Admin, EventType, EventStatus, ChallengeRegistration, AIAnalysis, AIAnalysisStatus, AIWorkerSettings, AITestResult
 from src.utils.event_manager import EventManager
 from src.utils.challenge_manager import ChallengeManager
 # NOTE: telebot import removed - web interface doesn't need bot functionality
@@ -1230,6 +1231,7 @@ def create_app():
             flash("Выберите видео для теста", "error")
             return redirect(url_for('ai_reports'))
 
+        db = db_manager.get_session()
         try:
             files = {
                 "video": (video_file.filename, video_file.stream, video_file.content_type or "video/mp4")
@@ -1248,18 +1250,37 @@ def create_app():
             )
 
             if response.ok:
-                session["ai_test_result"] = response.json()
-                session["ai_test_error"] = None
-                session.permanent = True
+                result = response.json()
+                test_row = AITestResult(
+                    exercise_type=exercise_type,
+                    result_json=json.dumps(result, ensure_ascii=False),
+                    error_message=None
+                )
+                db.add(test_row)
+                db.commit()
             else:
-                session["ai_test_error"] = f"{response.status_code}: {response.text}"
+                test_row = AITestResult(
+                    exercise_type=exercise_type,
+                    result_json=None,
+                    error_message=f"{response.status_code}: {response.text}"
+                )
+                db.add(test_row)
+                db.commit()
         except Exception as e:
-            session["ai_test_error"] = str(e)
+            test_row = AITestResult(
+                exercise_type=exercise_type,
+                result_json=None,
+                error_message=str(e)
+            )
+            db.add(test_row)
+            db.commit()
+        finally:
+            db.close()
 
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({
-                "result": session.get("ai_test_result"),
-                "error": session.get("ai_test_error")
+                "result": result if 'result' in locals() else None,
+                "error": test_row.error_message if 'test_row' in locals() else None
             })
 
         return redirect(url_for('ai_reports'))
@@ -1267,8 +1288,12 @@ def create_app():
     @app.route('/ai-test/clear', methods=['POST'])
     @login_required
     def ai_test_clear():
-        session.pop("ai_test_result", None)
-        session.pop("ai_test_error", None)
+        db = db_manager.get_session()
+        try:
+            db.query(AITestResult).delete()
+            db.commit()
+        finally:
+            db.close()
         return redirect(url_for('ai_reports'))
 
     @app.route('/ai-reports')
@@ -1307,8 +1332,16 @@ def create_app():
                 })
 
             settings = _get_or_create_ai_settings(db)
-            test_result = session.get("ai_test_result")
-            test_error = session.get("ai_test_error")
+            test_row = db.query(AITestResult).order_by(AITestResult.created_at.desc()).first()
+            test_result = None
+            test_error = None
+            if test_row:
+                test_error = test_row.error_message
+                if test_row.result_json:
+                    try:
+                        test_result = json.loads(test_row.result_json)
+                    except Exception:
+                        test_result = None
 
             return render_template('ai_reports.html',
                                  reports=reports,
