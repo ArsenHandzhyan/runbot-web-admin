@@ -14,7 +14,7 @@ from functools import wraps
 
 import requests
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, jsonify
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import selectinload
 
 # Removed problematic import: from src.web.test_media import test_media_blueprint
@@ -1170,6 +1170,17 @@ def create_app():
         db.refresh(settings)
         return settings
 
+    def _ensure_ai_test_columns(db_manager):
+        """Ensure ai_test_results has status/updated_at columns (for legacy DBs)."""
+        try:
+            engine = db_manager.engine
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE ai_test_results ADD COLUMN IF NOT EXISTS status text DEFAULT 'queued'"))
+                conn.execute(text("ALTER TABLE ai_test_results ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW()"))
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"ai_test_results migration skipped/failed: {e}")
+
     @app.route('/ai-settings', methods=['POST'])
     @login_required
     def ai_settings_update():
@@ -1217,6 +1228,7 @@ def create_app():
     @app.route('/ai-test', methods=['POST'])
     @login_required
     def ai_test():
+        _ensure_ai_test_columns(db_manager)
         worker_url = os.getenv("AI_WORKER_URL", "").strip()
         api_key = os.getenv("AI_WORKER_API_KEY", "").strip()
 
@@ -1288,6 +1300,7 @@ def create_app():
     @app.route('/ai-test/clear', methods=['POST'])
     @login_required
     def ai_test_clear():
+        _ensure_ai_test_columns(db_manager)
         db = db_manager.get_session()
         try:
             db.query(AITestResult).delete()
@@ -1300,6 +1313,7 @@ def create_app():
     @login_required
     def ai_reports():
         """View AI analysis reports dashboard"""
+        _ensure_ai_test_columns(db_manager)
         db = db_manager.get_session()
         try:
             # Get all AI analyses with related data
