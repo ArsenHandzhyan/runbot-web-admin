@@ -1247,16 +1247,23 @@ def create_app():
             return redirect(url_for('ai_reports'))
         
         # Check file size
-        if len(video_file.read()) > app.config['MAX_CONTENT_LENGTH']:
-            video_file.seek(0)  # Reset file pointer
+        file_content = video_file.read()
+        if len(file_content) > app.config['MAX_CONTENT_LENGTH']:
             flash("Файл слишком большой. Максимальный размер: 50MB", "error")
             return redirect(url_for('ai_reports'))
+        
+        # Check file type
+        allowed_types = ['video/mp4', 'video/avi', 'video/mov', 'video/quicktime']
+        if video_file.content_type and video_file.content_type not in allowed_types:
+            flash("Неподдерживаемый формат файла. Разрешены: MP4, AVI, MOV", "error")
+            return redirect(url_for('ai_reports'))
+        
         video_file.seek(0)  # Reset file pointer for reading
 
         db = db_manager.get_session()
         try:
             files = {
-                "video": (video_file.filename, video_file.stream, video_file.content_type or "video/mp4")
+                "video": (video_file.filename, file_content, video_file.content_type or "video/mp4")
             }
             data = {"exercise_type": exercise_type}
             headers = {}
